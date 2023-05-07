@@ -1,3 +1,6 @@
+'''
+disponible en github.com
+'''
 from kivy.uix.widget import Widget
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
