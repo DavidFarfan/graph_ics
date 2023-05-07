@@ -133,6 +133,8 @@ class Graph:	# grafo conceptual
 
 class Path_Calc:	# calculadora de caminos
 
+	found_cliques = [];
+
 	def neighbor_set(self, v, G):
 		N = [];
 		for u in range(G.E.columns):
@@ -148,6 +150,7 @@ class Path_Calc:	# calculadora de caminos
 	
 	def bron_kerbosch(self, R_arg, P_arg, X_arg, G, lvl):
 		
+		if lvl == 1: self.found_cliques = [];	# limpiar cliques de un grafo anterior
 		'''
 		Sin pivoting:
 		
@@ -164,7 +167,9 @@ class Path_Calc:	# calculadora de caminos
 		#print("R: "+str(R));
 		#print("P: "+str(P));
 		#print("X: "+str(X));
-		if P == [] and X == []: print("clique: "+str(R));
+		if P == [] and X == []: 
+			#print("clique: "+str(R));
+			self.found_cliques.append(R);
 		while not P == []:
 			v = P[0];
 			Nv = self.neighbor_set(v, G);
@@ -265,12 +270,17 @@ class Path_Calc:	# calculadora de caminos
 		#print("end of path for R =" + str(R));
 		return R;
 
-	def simple_path(self, GC, text_f, s):	# encontrar camino simple desde s
+	def simple_path(self, GC, text_f, s, panel):	# encontrar camino simple desde s
 		
 		if GC.set_sub: return;	# no interferencia con la funcion de subgrafos
 		
-		print("----------> bron_kerbosch");
+		#print("----------> bron_kerbosch");
 		self.bron_kerbosch([], GC.G.V, [], GC.G, 1);
+		#print(self.found_cliques);
+		aux_names = [];
+		for k in self.found_cliques:
+			aux_names.append("K"+str(len(k))+": "+str(k));
+		GC.auto_add_subs(self.found_cliques, aux_names, panel);
 		
 		G = GC.G;	# grafo asociado al visual
 		P = deque(); # camino
@@ -417,10 +427,10 @@ class VertexCanvas(Widget):	# vertice visual
 			if touch.x >= self.pos_x and touch.x < self.pos_x + self.d and touch.y >= self.pos_y and touch.y < self.pos_y + self.d:
 				if not self.sub:
 					self.parent.V_sub.append(self.id);
-					self.parent.show_subgraph();
 					self.sub = True;	# seleccionar con el paso del cursor también (subgrafo)
 					self.parent.log = "v = " + str(self.id);	# info del vertice
 					self.parent.log += '\n'+"tipo = " + str(self.type);
+					self.parent.show_subgraph();
 
 class GraphCanvas(Widget):	# grafo visual
 	
@@ -438,6 +448,19 @@ class GraphCanvas(Widget):	# grafo visual
 	display_new_sub = BooleanProperty(True);	# bandera para el panel
 	view_V = ObjectProperty([]);	# vertices a mostrar
 	
+	def auto_add_subs(self, subs, names, panel):	# agregar subgrafos automaticamente
+		for i in range(len(subs)):
+			self.subgraph(True);
+			for s in subs[i]:
+				self.V_sub.append(s);
+				self.V[s].sub = True;
+				self.log = "v = " + str(self.V[s].id);	# info del vertice
+				self.log += '\n'+"tipo = " + str(self.V[s].type);
+			#print(str(names[i])+" en proceso con bandera verde en: "+str(self.display_new_sub));
+			self.subgraph_confirm(names[i]);
+			panel.update(self);
+		#print(self.G.Sub);
+	
 	def show_subgraph(self):	# mostrar en el campo de texto el subgrafo que se está construyendo
 		self.parent.children[1].children[0].text = "subgrafo: "+str(self.V_sub);	# imprimir en el campo de texto
 		#print(self.V_sub);
@@ -450,9 +473,9 @@ class GraphCanvas(Widget):	# grafo visual
 				v.sub = False;
 		self.set_sub = False;
 	
-	def subgraph_confirm(self):	# Confirmar subgrafo construido
+	def subgraph_confirm(self, name):	# Confirmar subgrafo construido
 		sub_aux = self.V_sub;
-		self.G.add_sub(sub_aux, None);
+		self.G.add_sub(sub_aux, name);
 		self.reset_subgraph();
 	
 	def subgraph(self, value):	# on/off # seleccion de subgrafo
@@ -653,9 +676,10 @@ class SubPanel(GridLayout):	# panel de subgrafos
 		self.add_widget(self.dwn_btn); # pintar el boton abajo de ultimo
 
 	def update(self, GC):	# actualizar el panel
-		if GC.display_new_sub:	# esperar la bandera del canvas para agregar un nombre a la lista
-			name = GC.G.Sub[len(self.Sub)][0];	# copiar el nombre a la lista
+		if GC.display_new_sub and (not len(GC.G.Sub) == len(self.Sub)):	# esperar la bandera, comprobar lista de G
+			name = GC.G.Sub[len(self.Sub)][0];	# copiar el nuevo nombre a la lista propia
 			self.Sub.append(name);
+			#print("hay que imprimir: "+name);
 			if len(self.Sub) <= 18:
 				self.remove_widget(self.dwn_btn);	# cambiar de lugar el boton down
 				aux_btn = Button(font_size='10', text=name, size_hint_y=None, height=30, size_hint_x=None, width=100);
@@ -686,7 +710,7 @@ class GraphApp(App):	# aplicacion
 	def rand_graph(self, sub):	# preparar un grafo random
 		sub.restart();
 		G = Graph();
-		for i in range(10):
+		for i in range(50):
 			G.insertVertex();
 		G.rand_edges(.3);
 		#print("-------------> random graph:");
@@ -706,7 +730,7 @@ class GraphApp(App):	# aplicacion
 		path_btn.disabled = False;
 		ran_btn.disabled = False;
 		lbl_btn.disabled = False;
-		canvas.subgraph_confirm();
+		canvas.subgraph_confirm(None);
 	
 	def sizes(self, root):
 		print(str(root.children[0].width) + ", " + str(root.children[1].width) + ", " + str(root.children[2].width));
@@ -722,7 +746,7 @@ class GraphApp(App):	# aplicacion
 		
 		# Pintar grafo inicial
 		canvas = GraphCanvas();
-		canvas.init(self.rand_graph(subpanel), 50);
+		canvas.init(self.rand_graph(subpanel), 10);
 		
 		# Calculadora
 		p = Path_Calc();
@@ -745,7 +769,7 @@ class GraphApp(App):	# aplicacion
 		res_btn.bind(on_press=lambda x:canvas.recalc_vertexes_pos());
 		
 		path_btn = Button(font_size='10', text='Camino simple', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		path_btn.bind(on_press=lambda x:p.simple_path(canvas, txt_input, 0));
+		path_btn.bind(on_press=lambda x:p.simple_path(canvas, txt_input, 0, subpanel));
 		
 		ran_btn = Button(font_size='10',text='Random', size_hint_y=None, height=30, size_hint_x=None, width=100);
 		ran_btn.bind(on_press=lambda x:canvas.set_graph(self.rand_graph(subpanel)));
