@@ -70,17 +70,38 @@ class Graph:	# grafo conceptual
 	E = None;	# aristas
 	Sub = None;	# subgrafos
 	
-	def __init__(self):
+	def __init__(self):	# reiniciar propiedades
 		self.V = [];
 		self.E = ExMatrix();
 		self.Sub = [];
 	
-	def get_sub(self, name):
+	def subgraph(self, name):	# devolver un subgrafo almacenado (grafo)
+		SubG = Graph();
+		SubV = self.get_sub(name)[1];
+		for i in range(len(SubV)):	# recorrer el numero de vertices del subgrafo con dicho nombre
+			SubG.insertVertex();
+		for i in range(SubG.E.rows):
+			for j in range(SubG.E.columns):
+				if j >= i:
+					SubG.edge(self.get_edge(SubV[i], SubV[j]), i, j);
+		return SubG;
+	
+	def complement(self):	# devolver el grafo complemento
+		Com = Graph();
+		for i in range(self.E.rows):
+			Com.insertVertex();
+		Com.copy_inv_others_edges(self, True);
+		#print("Com: ");
+		#Com.E.print_matrix();
+		#print("rows: "+str(Com.E.rows)+", columns: "+str(Com.E.columns));
+		return Com;
+	
+	def get_sub(self, name):	# devolver un subgrafo almacenado (vertices)
 		for s in self.Sub:
 			if s[0] == name: return s;
 		return None;
 	
-	def add_sub(self, sub_V, name):	# agregar a la lista de subgrafos
+	def add_sub(self, sub_V, name):	# agregar a la lista de subgrafos (vertices)
 		if sub_V == []: return;	# no agregar vacio
 		#print("vertices: "+str(sub_V));	# agregar vertices del subgrafo con un nombre
 		
@@ -111,7 +132,7 @@ class Graph:	# grafo conceptual
 			self.edge(0, len(self.V)-1, i);
 		self.add_sub(self.V, 'self');
 	
-	def opp_edge(self, n, m):	# Invertir arista (Grafo y complemento)
+	def opp_edge(self, n, m):	# Invertir arista
 		if self.get_edge(n, m) == 0: self.edge(1, n, m);
 		else: self.edge(0, n, m);
 	
@@ -119,6 +140,18 @@ class Graph:	# grafo conceptual
 		for v in self.V:
 			vc = (v+n)%len(self.V);
 			self.edge(1, vc, v);
+	
+	def copy_inv_others_edges(self, G, inv):	# copiar las aristas de otro grafo o de su complemento
+		for i in range(self.E.rows):
+			for j in range(self.E.columns):
+				if j >= i:
+					if inv:
+						if G.get_edge(j,i) == 0:
+							self.edge(1,j,i);
+						else:
+							self.edge(0,j,i);
+					else:
+						self.edge = G.get_edge(j,i);
 	
 	def rand_edges(self, p):	# aristas aleatorias
 		ra = 0.0;
@@ -133,24 +166,24 @@ class Graph:	# grafo conceptual
 
 class Path_Calc:	# calculadora de caminos
 
-	found_cliques = [];
+	found_cliques = [];	# arreglo de cliques encontrados
 
-	def neighbor_set(self, v, G):
+	def neighbor_set(self, v, G):	# conjunto de vecinos de un vertice
 		N = [];
 		for u in range(G.E.columns):
 			if (not u == v) and (G.get_edge(u, v) == 1):
 				N.append(u);
 		return N;
 	
-	def intersection_set(self, A, B):
+	def intersection_set(self, A, B):	#	conjunto interseccion
 		I = [];
 		for v in A:
 			if o.contains(B, v): I.append(v);
 		return I;
 	
-	def bron_kerbosch(self, R_arg, P_arg, X_arg, G, lvl):
+	def bron_kerbosch(self, R_arg, P_arg, X_arg, G, lvl):	# alg. bron-kerbosch para cliques maximales (forma basica)
 		
-		if lvl == 1: self.found_cliques = [];	# limpiar cliques de un grafo anterior
+		if lvl == 1: self.found_cliques = [];	# limpiar cliques de algun grafo anterior
 		'''
 		Sin pivoting:
 		
@@ -210,10 +243,10 @@ class Path_Calc:	# calculadora de caminos
 	def comb(self, n, k):	# coef. binomial
 		return int ( m.factorial(n) / ( m.factorial(k) * ( m.factorial(n - k) ) ) );
 	
-	def matula_beck_deg_order(self, G):	# algoritmo de orden de degeneración
+	def matula_beck_deg_order(self, G):	# algoritmo de orden de degeneración matula-beck
 		
 		'''
-		El algoritmo implementa la cola de prioridad para extraer los vertices, uno a uno, del grafo segun sus grados y, de esa manera, generar un orden de degeneración
+		El algoritmo implementa la cola de prioridad para extraer los vertices del grafo, uno a uno, según sus grados y, de esa manera, generar un orden de degeneración
 		'''
 		
 		L = [];	# arreglo de salida (orden de degeneración)
@@ -260,6 +293,16 @@ class Path_Calc:	# calculadora de caminos
 		
 		print("L = "+str(L));
 	
+	def calc_cliques(self, GC, panel):	# calcular cliques maximales
+		#print("----------> bron_kerbosch");
+		self.bron_kerbosch([], GC.G.V, [], GC.G, 1);
+		#print(self.found_cliques);
+		aux_names = [];
+		for k in self.found_cliques:
+			aux_names.append("K"+str(len(k))+": "+str(k));
+		GC.auto_add_subs(self.found_cliques, aux_names, panel);
+		panel.sort_subs(GC, True);	# actualizar el panel de subgrafos con los hallazgos
+	
 	def next(self, GC, R, V):	# iteracion del algoritmo camino simple
 		for v in GC.V:
 			if o.contains(V, v.id) and GC.G.get_edge(R, v.id) == 1:
@@ -273,14 +316,6 @@ class Path_Calc:	# calculadora de caminos
 	def simple_path(self, GC, text_f, s, panel):	# encontrar camino simple desde s
 		
 		if GC.set_sub: return;	# no interferencia con la funcion de subgrafos
-		
-		#print("----------> bron_kerbosch");
-		self.bron_kerbosch([], GC.G.V, [], GC.G, 1);
-		#print(self.found_cliques);
-		aux_names = [];
-		for k in self.found_cliques:
-			aux_names.append("K"+str(len(k))+": "+str(k));
-		GC.auto_add_subs(self.found_cliques, aux_names, panel);
 		
 		G = GC.G;	# grafo asociado al visual
 		P = deque(); # camino
@@ -334,6 +369,9 @@ class Path_Calc:	# calculadora de caminos
 		
 		GC.log = "camino simple calculado."
 		text_f.text = "camino simple: "+str(list(P)) +", tamaño = "+str(len(P));
+		
+		GC.auto_add_subs([list(P)], ["camino simple"], panel);	# agregar el camino al panel de subgrafos
+		GC.auto_add_subs([V], ["periferias"], panel);	# agregar el grafo de periferias de subgrafos
 		
 		for e in V:	# cambiar etiquetas del grafo
 			P.append(e);
@@ -454,7 +492,7 @@ class GraphCanvas(Widget):	# grafo visual
 			for s in subs[i]:
 				self.V_sub.append(s);
 				self.V[s].sub = True;
-				self.log = "v = " + str(self.V[s].id);	# info del vertice
+				self.log = "v = " + str(self.V[s].id);	# info del vertices
 				self.log += '\n'+"tipo = " + str(self.V[s].type);
 			#print(str(names[i])+" en proceso con bandera verde en: "+str(self.display_new_sub));
 			self.subgraph_confirm(names[i]);
@@ -462,7 +500,7 @@ class GraphCanvas(Widget):	# grafo visual
 		#print(self.G.Sub);
 	
 	def show_subgraph(self):	# mostrar en el campo de texto el subgrafo que se está construyendo
-		self.parent.children[1].children[0].text = "subgrafo: "+str(self.V_sub);	# imprimir en el campo de texto
+		self.parent.children[1].children[1].text = "subgrafo: "+str(self.V_sub);	# imprimir en el campo de texto
 		#print(self.V_sub);
 	
 	def reset_subgraph(self):	# desmarcar vertices al terminar de construir subgrafo
@@ -497,6 +535,7 @@ class GraphCanvas(Widget):	# grafo visual
 	def lbl_change(self, txt):	# intercambiar un par de etiquetas
 		if self.set_sub: return;	# no interferencia con la funcion de subgrafos
 		l = list(txt.rsplit(' '));
+		if not l[0].isnumeric(): return;	# control provisional de la entrada
 		n = int(l[0]);
 		m = int(l[1]);
 		if n < 0 or m < 0: return;
@@ -530,7 +569,7 @@ class GraphCanvas(Widget):	# grafo visual
 				self.mark = -1;
 				self.end = -1;
 				return;
-			e = self.G.get_edge(self.mark, v);	# informar dónde está la arista si se marca un segundo vertice
+			e = self.G.get_edge(self.mark, v);	# informar sobre la arista si se marca un segundo vertice
 			self.end = v;
 			if e == 0: self.log = "edge (" + str(self.mark) + ", " + str(v) + ") está en Com."+'\n'+"(Otro clic para trasladar)"; 
 			else: self.log = "edge (" + str(self.mark) + ", " + str(v) + ") está en G."+'\n'+"(Otro clic para trasladar)"; 
@@ -555,7 +594,7 @@ class GraphCanvas(Widget):	# grafo visual
 			angle = (2 * i * m.pi) / n;
 			self.V[i].pos_set(200 * m.cos(angle) + (self.width / 2), 200 * m.sin(angle) + (self.height / 2));
 	
-	def set_graph(self, G):	# establecer grafo a mostrar
+	def set_graph(self, G):	# establecer grafo con el cual trabajar
 		if self.set_sub: return;	# no interferencia con la funcion de subgrafos
 		self.clear_widgets(self.children);	# limpiar canvas
 		self.V = [];	# vaciar lista de vertices (visuales)
@@ -603,7 +642,7 @@ class GraphCanvas(Widget):	# grafo visual
 		y2 = v2.pos_y;
 		Line(points=[d+x1 ,d+y1 ,d+x2 ,d+y2], width=1);
 	
-	def draw_edges(self):	# dibujar todas las aristas
+	def draw_edges(self):	# dibujar las aristas
 		d = self.d/2;
 		with self.canvas:
 			for i in range(self.G.E.rows):
@@ -627,24 +666,48 @@ class GraphCanvas(Widget):	# grafo visual
 		with self.canvas:
 			Label(font_size='15', text='>> '+self.log, center_x=self.width/3 - 12, top=self.height/6);
 	
-	def update(self, dt):	# a ejecutar segun reloj
-		self.draw();
+	def update(self, dt):	# para ejecutar segun reloj
+		self.draw();	# redibujar
 
 class SubPanel(GridLayout):	# panel de subgrafos
 	
 	Sub = [];	# lista de nombres de los subgrafos almacenados
 	up_btn = Button(font_size='10', text='/|', size_hint_y=None, height=30, size_hint_x=None, width=30);	# boton up
 	dwn_btn = Button(font_size='10', text='|/', size_hint_y=None, height=30, size_hint_x=None, width=30);	# boton dwn
-	first_sub_to_show = 0;
+	first_sub_to_show = 0;	# primer subgrafo a ser mostrado en el panel (de arriba hacia abajo)
 
-	def add_funct_on_panel(self, i, GC):	# por alguna razón, agregar los botones con un for no funciona
-		if i >= 18: return;
+	def sort_subs(self, GC, max_min):	# ordenar subgrafos segun tamaño del subconjunto
+		sorted = [];
+		k = 0;
+		while(not len(sorted) == len(self.Sub)):
+			#print("tamaño: "+str(k));
+			arr_aux = [];
+			for name in self.Sub:
+				sub = GC.G.get_sub(name)[1];
+				if len(sub) == k: arr_aux.append(name);
+			if max_min:
+				sorted = arr_aux + sorted;
+			else: 
+				sorted = sorted + arr_aux;
+			k += 1;
+		
+		#print("subs: "+str(self.Sub));
+		print("------------------------------");
+		print("sorted: "+str(sorted));
+		#print("------------------------------");
+		
+		self.Sub = sorted;
+		self.first_sub_to_show = 0;	# ir al inicio de la lista de botones
+		self.reprint_subs(GC);	# actuaizar panel con botones organizados
+
+	def add_funct_on_panel(self, i, b, GC): # agregar botones (recursivo). Por alguna razón, con un for no funciona.
+		if i > b-1: return;	# el indice llega hasta b-1 para b botones
 		sub_name = self.Sub[self.first_sub_to_show + i];
 		aux_btn = Button(font_size='10', text=sub_name, size_hint_y=None, height=30, size_hint_x=None, width=100);
 		#print("btn = "+str(sub_name));
 		aux_btn.bind(on_press=lambda x:self.display_subgraph(GC, sub_name));
 		self.add_widget(aux_btn);
-		self.add_funct_on_panel(i+1, GC);
+		self.add_funct_on_panel(i+1, b, GC);
 
 	def go_up(self):	# funcion del boton arriba
 		if self.first_sub_to_show == 0: return;	# inicio de la lista
@@ -657,25 +720,32 @@ class SubPanel(GridLayout):	# panel de subgrafos
 	
 	def restart(self):	# reiniciar el panel 
 		self.Sub = [];	# vaciar lista de nombres
-		self.clear_widgets(self.children);	# limpiar canvas
-		self.add_widget(self.up_btn);	# agregar los botones
+		self.clear_widgets(self.children);	# limpiar botones
+		self.add_widget(self.up_btn);	# agregar de nuevo los botones arriba/abajo
 		self.add_widget(self.dwn_btn);
 
-	def display_subgraph(self, GC, name):	# imponer al canvas la vista seleccionada
+	def display_subgraph(self, GC, name):	# pintar en el canvas el subgrafo seleccionado
 		arr = GC.G.get_sub(name)[1];
-		name = GC.G.get_sub(name)[0];
-		#print("array to display: "+str(arr)+" from sub named: "+str(name));
+		name_sub = GC.G.get_sub(name)[0];
+		print(GC.G.subgraph(name_sub));
+		#print("array to display: "+str(arr)+" from sub named: "+str(name_sub));
 		GC.view_V = arr;
 
-	def reprint_subs(self, GC):	# imprimir los botones que alcanzan en el panel
-		for i in range(19):
+	def reprint_subs(self, GC):	# imprimir los botones que alcancen en el panel
+		n = len(self.children) - 1;
+		for i in range(n):
 			#print(self.children[0].text);
 			self.remove_widget(self.children[0]);	# limpiar canvas, menos el boton arriba
 		#print("-----------------");
-		self.add_funct_on_panel(0, GC);	# agregar botones recursivamente
+		#print(str(len(self.children))+" is "+str(self.children[0].text));
+		add_num = n-1;
+		if add_num > 18: add_num = 18;
+		#print("hay que agregar "+str(n-1)+" subgrafos al panel y el botón de abajo.");
+		self.add_funct_on_panel(0, add_num, GC);	# agregar botones recursivamente
 		self.add_widget(self.dwn_btn); # pintar el boton abajo de ultimo
 
 	def update(self, GC):	# actualizar el panel
+		#print("botones en total: "+str(len(self.children)));
 		if GC.display_new_sub and (not len(GC.G.Sub) == len(self.Sub)):	# esperar la bandera, comprobar lista de G
 			name = GC.G.Sub[len(self.Sub)][0];	# copiar el nuevo nombre a la lista propia
 			self.Sub.append(name);
@@ -707,24 +777,32 @@ class SubPanel(GridLayout):	# panel de subgrafos
 
 class GraphApp(App):	# aplicacion
 	
+	def void_text(self, input):
+		input.text = '';
+	
+	def count_subs(self, lbl, panel):	# contador de subgrafos almacenados
+		lbl.text = "subg's: "+str(len(panel.Sub))
+	
 	def rand_graph(self, sub):	# preparar un grafo random
 		sub.restart();
 		G = Graph();
-		for i in range(50):
+		for i in range(30):
 			G.insertVertex();
-		G.rand_edges(.3);
-		#print("-------------> random graph:");
+		G.rand_edges(.2);
+		#print("-------------> random graph:");	
 		#G.E.print_matrix();
+		#print("-------------> its complement:");
+		#G.complement().E.print_matrix();
 		return G;
 	
-	def subgraph(self, value, sub_btn, path_btn, ran_btn, lbl_btn, canvas):	# mostrar/ocultar botones y correr funcion
+	def subgraph(self, value, sub_btn, path_btn, ran_btn, lbl_btn, canvas):	# mostrar/ocultar botones y lanzar funcion
 		sub_btn.disabled = not value;
 		path_btn.disabled = value;
 		ran_btn.disabled = value;
 		lbl_btn.disabled = value;
 		canvas.subgraph(value);
 	
-	def subgraph_confirm(self, checkbox, sub_btn, path_btn, ran_btn, lbl_btn, canvas):	# confirmar subgrafo
+	def subgraph_confirm(self, checkbox, sub_btn, path_btn, ran_btn, lbl_btn, canvas):	# confirmar subgrafo construido
 		checkbox.active = False;
 		sub_btn.disabled = True;
 		path_btn.disabled = False;
@@ -732,15 +810,12 @@ class GraphApp(App):	# aplicacion
 		lbl_btn.disabled = False;
 		canvas.subgraph_confirm(None);
 	
-	def sizes(self, root):
-		print(str(root.children[0].width) + ", " + str(root.children[1].width) + ", " + str(root.children[2].width));
-	
 	def build(self):	# montar la app
 		
+		# widget raíz
 		root = GridLayout();
 		
 		# panel de subgrafos
-		
 		subpanel = SubPanel();
 		subpanel.init();
 		
@@ -768,6 +843,9 @@ class GraphApp(App):	# aplicacion
 		res_btn = Button(font_size='10',text='Reiniciar pos', size_hint_y=None, height=30, size_hint_x=None, width=100);
 		res_btn.bind(on_press=lambda x:canvas.recalc_vertexes_pos());
 		
+		cliq_btn = Button(font_size='10', text='Cliques', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		cliq_btn.bind(on_press=lambda x:p.calc_cliques(canvas, subpanel));
+		
 		path_btn = Button(font_size='10', text='Camino simple', size_hint_y=None, height=30, size_hint_x=None, width=100);
 		path_btn.bind(on_press=lambda x:p.simple_path(canvas, txt_input, 0, subpanel));
 		
@@ -780,18 +858,24 @@ class GraphApp(App):	# aplicacion
 		lbl_btn = Button(font_size='10', text='Cambio etiquetas', size_hint_y=None, height=30, size_hint_x=None, width=100);
 		lbl_btn.bind(on_press=lambda x:canvas.lbl_change(txt_input.text));
 		
+		void_btn = Button(font_size='10', text='Vaciar', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		void_btn.bind(on_press=lambda x:self.void_text(txt_input));
+		
 		lbl_sub = Label(font_size='10', text='subgrafo', size_hint_y=None, height=25, size_hint_x=None, width=100);
 		
 		checkbox_sub = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=True, color=(0,100,50))
 		checkbox_sub.bind(active=lambda x,y:self.subgraph(checkbox_sub.active, sub_btn, path_btn, ran_btn, lbl_btn, canvas));
 		checkbox_sub.active = False;
 		
+		lbl_sub_n = Label(font_size='10', text="subg's: "+str(len(subpanel.Sub)), size_hint_y=None, height=25, size_hint_x=None, width=100);
+		
 		toolbar = GridLayout(orientation="rl-tb", size_hint_x=None, width=100);
-		toolbar.rows = 12;
+		toolbar.rows = 15;
 		toolbar.cols = 1;
 		toolbar.add_widget(ran_btn);
 		toolbar.add_widget(res_btn);
 		toolbar.add_widget(path_btn);
+		toolbar.add_widget(cliq_btn);
 		toolbar.add_widget(lbl_or);
 		toolbar.add_widget(checkbox);
 		toolbar.add_widget(lbl_com);
@@ -800,7 +884,9 @@ class GraphApp(App):	# aplicacion
 		toolbar.add_widget(lbl_sub);
 		toolbar.add_widget(checkbox_sub);
 		toolbar.add_widget(lbl_btn);
+		toolbar.add_widget(void_btn);
 		toolbar.add_widget(txt_input);
+		toolbar.add_widget(lbl_sub_n);
 		
 		# montaje
 		root.cols = 3;
@@ -808,10 +894,11 @@ class GraphApp(App):	# aplicacion
 		root.add_widget(toolbar);
 		root.add_widget(subpanel);
 		
-		# Metodo update se ejecutara periodicamente a razon de 60 hercios  
+		# actualizaciones (a razon de 60 hercios)  
 		Clock.schedule_interval(canvas.update, 1.0 / 60.0);
 		Clock.schedule_interval(lambda x:subpanel.update(canvas), 1.0 / 60.0);
-
+		Clock.schedule_interval(lambda x:self.count_subs(lbl_sub_n, subpanel), 1.0 / 60.0);
+		
 		return root;
 
 if __name__ == '__main__':
