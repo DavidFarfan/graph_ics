@@ -1,39 +1,54 @@
 '''
+GRaPH_ICS
 disponible en github.com
 '''
+
+#	Modulos graficos de Kivy
 from kivy.uix.widget import Widget
+from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
-from kivy.app import App
-from kivy.uix.button import Button
-from kivy.graphics import Color, Rectangle, Ellipse, Line
-import random
-import operator as o
-from functools import partial
-import math as m
-from collections import deque
+from kivy.graphics import (
+	Color, Rectangle, Ellipse, Line
+)
 
-# Valores y Propiedades Vectoriales de Kivy
+# Valores y Propiedades de Kivy
 from kivy.properties import (
     NumericProperty, ReferenceListProperty, ObjectProperty, StringProperty, BooleanProperty
 )
-from kivy.clock import Clock
 
-class ExMatrix: # matriz expandible
+# Otros modulos de Kivy
+from kivy.clock import Clock
+from kivy.app import App
+
+# Modulos de Python
+import random as r
+import operator as o
+import math as m
+from collections import deque
+
+# Matriz expandible
+class ExMatrix:
 
 	data = None;    # Arreglo filas
-	rows = None;	# num filas
-	columns = None;	# num columnas
+	rows = None;	# Num. filas
+	columns = None;	# Num. columnas
 	
+	# Valores por defecto
 	def __init__(self):
+	
+		# Iniciar valores
 		self.data = [];
 		self.rows = 0;
 		self.columns = 0;
 
-	def expand_matrix(self, n, m):  # metodo para expandir tamaño de la matriz según necesidad
+	# Expandir tamaño de la matriz según necesidad
+	def expand_matrix(self, n, m):
+		
+		# Insertar casillas 
 		for i in range(n+1):
 			if(i>=len(self.data)):
 				self.data.append([]);
@@ -42,376 +57,643 @@ class ExMatrix: # matriz expandible
 				if(j>=len(self.data[i])):
 					self.data[i].append([]);
 		
+		# Calcular nuevo tamaño de la matriz
 		self.rows = len(self.data);
 		self.columns = len(self.data[0]);
 	
-	def print_matrix(self): # imprimir matriz
+	# Imprimir matriz en consola
+	def print_matrix(self):
+	
+		# Imprimir cada fila en una nueva línea
 		for i in range(len(self.data)):
 			print(self.data[i]);
 	
-	def intro(self, datos, idx, idy):  # Introducir datos en un indice (x, y)
+	# Introducir dato en una fila/columna
+	def intro(self, datos, idx, idy):
+	
+		# Expandir matriz lo suficiente
 		self.expand_matrix(idx, idy);
+		
+		# Introducir dato
 		self.data[idx][idy] = datos;
 		
-	def mirror(self): # Valores simetricos respecto a la diagonal
+	# Valores simetricos respecto a la diagonal, toma la mitad bajo la diagonal
+	def mirror(self):
+	
+		# Volverla una matriz cuadrada
 		if(self.rows>self.columns):
 			self.expand_matrix(self.rows, self.rows);
 		elif(self.columns>self.rows):
 			self.expand_matrix(self.columns, self.columns);
+			
+		# Copiar los valores de la mitad bajo la diagonal a la mitad superior
 		for i in range(self.rows):
 			for j in range(self.columns):
 				if(i<j):
-					#print(str(i)+"<"+str(j)+" data: "+str(self.data[j][i]));
 					self.data[i][j] = self.data[j][i];
 
-class Graph:	# grafo conceptual
+# Grafo conceptual
+class Graph:
 
-	V = None;	# vertices
-	E = None;	# aristas
-	Sub = None;	# subgrafos
+	V = None;	# Vértices
+	E = None;	# Aristas
+	Sub = None;	# Lista de subgrafos de interés: Pares ordenados: (Nombre del subgrafo, Subconjunto de V)
+	vertices = 0; # Número de vértices
+	edges = 0; # Número de aristas
+	subgraphs = 0;	# Número de subgrafos
 	
-	def __init__(self):	# reiniciar propiedades
+	# Iniciar propiedades
+	def __init__(self, tst = False):
+		
+		# Inicializar como grafo sin vértices
 		self.V = [];
 		self.E = ExMatrix();
-		self.Sub = [];
-	
-	def subgraph(self, name):	# devolver un subgrafo almacenado (grafo)
-		SubG = Graph();
-		SubV = self.get_sub(name)[1];
-		for i in range(len(SubV)):	# recorrer el numero de vertices del subgrafo con dicho nombre
-			SubG.insertVertex();
-		for i in range(SubG.E.rows):
-			for j in range(SubG.E.columns):
-				if j >= i:
-					SubG.edge(self.get_edge(SubV[i], SubV[j]), i, j);
-		return SubG;
-	
-	def complement(self):	# devolver el grafo complemento
-		Com = Graph();
-		for i in range(self.E.rows):
-			Com.insertVertex();
-		Com.copy_inv_others_edges(self, True);
-		#print("Com: ");
-		#Com.E.print_matrix();
-		#print("rows: "+str(Com.E.rows)+", columns: "+str(Com.E.columns));
-		return Com;
-	
-	def get_sub(self, name):	# devolver un subgrafo almacenado (vertices)
-		for s in self.Sub:
-			if s[0] == name: return s;
-		return None;
-	
-	def add_sub(self, sub_V, name):	# agregar a la lista de subgrafos (vertices)
-		if sub_V == []: return;	# no agregar vacio
-		#print("vertices: "+str(sub_V));	# agregar vertices del subgrafo con un nombre
+		self.Sub = dict();
 		
-		for i in range(len(self.Sub)): # buscar el subgrafo
-			s = self.Sub[i];
-			if name == s[0]: 
-				self.Sub[i][1] = sub_V;	# si el nombre pertenece a un subgrafo, reemplazar sus vert.
-				#print("subgrafos: "+str(self.Sub));
-				return;
+		# Agregarse a sí mismo en la lista de subgrafos bajo el nombre de 'self'
+		self.add_sub(self.V, 'self');
 		
-		if name == None:	self.Sub.append(['subG'+str(len(self.Sub)),sub_V]);
-		else: self.Sub.append([name,sub_V]);
-		#print("subgrafos: "+str(self.Sub));
+		# Notificarse al terminar
+		if tst: 
+			print("El grafo se ha iniciado.");
+			self.print_ady();
+			self.print_subs();
 	
-	def get_edge(self, n ,m):	# arista nm
-		return self.E.data[n][m];
+	# Imprimir |V| y |E|
+	def vertices_and_edges(self):
 	
-	def edge(self, val, n, m):	# establecer valor para la arista nm
+		# |V| y |E|
+		print("edges = "+str(self.edges)+", vertices = "+str(self.vertices));
+	
+	# Imprimir matriz de adyacencia
+	def print_ady(self):
+		
+		# Señalar inicio de la impresión
+		print('<Adyacencia del grafo>');
+		
+		# Avisar si el grafo no tiene vértices
+		if self.vertices == 0: 
+			print('Sin vértices');
+			return;
+		
+		# Método de la ExMatrix
+		self.E.print_matrix();
+	
+	# Establecer valor en la arista nm
+	def edge(self, n, m, val = 1):
+		
+		# Introducir valor bajo la diagonal, para poder reflejarlo
 		if n > m: self.E.intro(val, n, m);
 		else: self.E.intro(val, m, n);
+		
+		# arista nm = arista mn
 		self.E.mirror();
-		#self.E.print_matrix();
+		
+		# Incrementar en 1 el núm. de aristas si la adyacencia no es de un vértice hacia sí mismo
+		if (not val == 0) and (not n == m): self.edges += 1;
 	
-	def insertVertex(self):	# insertar vertice
-		self.V.append(len(self.V));
-		self.edge(1, len(self.V)-1, len(self.V)-1);
-		for i in range(len(self.V)-1):
-			self.edge(0, len(self.V)-1, i);
+	# Agregar/eliminar un conjunto de aristas
+	def set_edges(self, arr, add = True):
+	
+		# Según la bandera, add, se eliminan o se agregan
+		for pair in arr:
+		
+			# No proceder cuando se introduce una adyacencia de un vértice hacia sí mismo
+			if pair[0] == pair[1]: continue;
+			
+			# Agregar/quitar según el caso
+			if add: self.edge(pair[0], pair[1]);
+			else: self.edge(pair[0], pair[1], 0);
+	
+	# Devolver adyacencia de vértices n y m
+	def get_edge(self, n ,m):
+	
+		# Tomar de la matriz E
+		return self.E.data[n][m];
+	
+	# Invertir arista
+	def opp_edge(self, n, m):
+	
+		# Consultar valor e introducir su opuesto
+		if self.get_edge(n, m) == 0: self.edge(n, m);
+		else: self.edge(n, m, 0);
+	
+	# Agregar un vértice nuevo al grafo
+	def insertVertex(self):
+		
+		# Agregar, de forma incremental, un id numérico a la lista de vértices
+		self.V.append(self.vertices);
+		
+		# Hacer a un vértice adyacente a sí mismo
+		self.edge(self.vertices, self.vertices);
+		
+		# Incrementar en 1 el núm. de vértices
+		self.vertices += 1;
+		
+		# Agregar el vértice sin adyacencia a ninún otro anterior a él
+		for i in range(self.vertices-1):
+			self.edge(self.vertices-1, i, 0);
+		
+		# Agregarse/Actualizarse a sí mismo en la lista de subgrafos bajo el nombre de 'self'
 		self.add_sub(self.V, 'self');
 	
-	def opp_edge(self, n, m):	# Invertir arista
-		if self.get_edge(n, m) == 0: self.edge(1, n, m);
-		else: self.edge(0, n, m);
+	# Hacer aleatorias las aristas
+	def rand_edges(self, p):
+		
+		ra = 0.0;	# Valor para contrastar con la probabilidad p de agregar una arista al grafo
+		
+		# Recorrer la matriz de adyacencia y agregar aristas
+		for i in range(self.vertices):
+			for j in range(self.vertices):
+				if j > i:
+					ra = r.random();
+					if ra <= p:
+						self.edge(j, i);
+					else:
+						self.edge(j, i, 0);
 	
-	def ciclo_edges(self, n):	# Agregar aristas del n-ciclo
+	# Agregar aristas que conectan a dos vértices que están a distancia n
+	def dist_edges(self, n):
+	
+		# Recorrer cada vértice y agregar uno de los dos pares que cumplen la condición
 		for v in self.V:
-			vc = (v+n)%len(self.V);
-			self.edge(1, vc, v);
+			v_c = (v + n) % self.vertices;	# vértice emparejado con v
+			self.edge(v_c, v);
+
+	# Imprmir todos los subgrafos almacenados (Conjuntos de vértices)
+	def print_subs(self):
 	
-	def copy_inv_others_edges(self, G, inv):	# copiar las aristas de otro grafo o de su complemento
-		for i in range(self.E.rows):
-			for j in range(self.E.columns):
+		# Señalar inicio de la impresión
+		print('<Subgrafos del grafo>');
+	
+		# Imprimir cada subgrafo almacenado junto con su nombre
+		print(self.Sub.items());
+
+	# Obtener un subgrafo almacenado (subconjunto de V)
+	def get_sub(self, name):
+	
+		# Buscar en el diccionario, devolver el conjunto de vertices, o bien, None, si no está el nombre
+		if name in self.Sub: return self.Sub[name];
+		else: return None;
+
+	# Agregar a la lista de subgrafos
+	def add_sub(self, sub_V, name):
+		
+		# No agregar vacío si el grafo ya tiene vértices
+		if sub_V == [] and not self.V == []: return;
+		
+		# Sumar 1 al número de subgrafos al agregar uno nuevo
+		if name not in self.Sub: self.subgraphs += 1;
+		
+		# Reemplazar el subgrafo si ya existe, si no, guardarlo con un el nombre proporcionado/por defecto
+		if name == None: self.Sub['subG'+str(len(self.Sub))] = sub_V;
+		else: self.Sub[name] = sub_V;
+	
+	# Obtener subgrafo a partir de su nombre
+	def get_subgraph(self, name):
+		
+		# Devolver el grafo sin aristas si el nombre no corresponde a un subgrafo almacenado
+		if self.get_sub(name) == None: return Graph();
+	
+		SubG = Graph();	# Nuevo grafo a devolver
+		SubV = self.get_sub(name);	# Subconjunto de V asociado al nombre
+		
+		# Insertar los vértices de SubV al grafo
+		for i in range(len(SubV)):
+			SubG.insertVertex();
+		
+		# Tomar las aristas del grafo involucradas
+		for i in range(SubG.vertices):
+			for j in range(SubG.vertices):
+				if j >= i:
+					SubG.edge(i, j, self.get_edge(SubV[i], SubV[j]));
+		return SubG;
+	
+	# Obtener el grafo complemento
+	def get_complement(self):
+		
+		Com = Graph();	# Grafo nuevo para no sobreescribir nada
+		
+		# Agregarle el mismo numero de vertices
+		for i in range(self.vertices):
+			Com.insertVertex();
+			
+		# Hacer que grafo Com copie las aristas del complemento
+		Com.copy_inv_other_s_edges(self, True);
+		return Com;
+	
+	# Copiar las aristas de otro grafo o de su complemento, del mismo tamaño
+	def copy_inv_other_s_edges(self, G, inv = False):
+	
+		# Recorrer las aristas y asignarles el valor del grafo/complemento al que se copia
+		for i in range(self.vertices):
+			for j in range(self.vertices):
 				if j >= i:
 					if inv:
-						if G.get_edge(j,i) == 0:
-							self.edge(1,j,i);
-						else:
-							self.edge(0,j,i);
-					else:
-						self.edge = G.get_edge(j,i);
+						if G.get_edge(j, i) == 0: self.edge(j, i);
+						else: self.edge(j, i, 0);
+					else: self.edge(j, i, G.get_edge(j,i));
+
+# Calculadora para grafos
+class GraphCalc:
+
+	found_cliques = []; # Cliques almacenados en el alg. Bron-Kerbosch
+	R1 = 0; # Vértices R del alg. Camino simple
+	R2 = 0;
+	ue = [];	# Vértices U del alg. Camino simple
+	france = []; # Vértices F del alg. Camino simple
+	peninsular = []; # Vértices F/P del alg. Camino simple
+	uk = [];	# Vértices F/P/E del alg. Camino simple
 	
-	def rand_edges(self, p):	# aristas aleatorias
-		ra = 0.0;
-		for i in range(self.E.rows):
-			for j in range(self.E.columns):
-				if j > i:
-					ra = random.random();
-					if ra <= p:
-						self.edge(1,j,i);
-					else:
-						self.edge(0,j,i);
+	# Imprimir ultimos cliques encontrados
+	def get_cliques(self):
+	
+		# Señalar inicio de la impresión
+		print('<Cliques hallados>');
+	
+		# Imprimirlos en una nueva linea
+		for k in self.found_cliques:
+			print(k);
+	
+	# Coeficiente binomial
+	def comb(self, n, k):
+		
+		# Devolver el valor entero
+		return int ( m.factorial(n) / ( m.factorial(k) * ( m.factorial(n - k) ) ) );
 
-class Path_Calc:	# calculadora de caminos
+	# Conjunto interseccion
+	def intersection_set(self, A, B):
+	
+		I = [];	# Intersección
+		
+		# Recorrer cada vértice en A y verificar si está también en B
+		for v in A:
+			if o.contains(B, v): I.append(v);
+		return I;
 
-	found_cliques = [];	# arreglo de cliques encontrados
-
-	def neighbor_set(self, v, G):	# conjunto de vecinos de un vertice
-		N = [];
-		for u in range(G.E.columns):
+	# Conjunto de vecinos de un vertice
+	def neighbor_set(self, v, G):
+	
+		N = [];	# Conjunto de vecinos
+		
+		# Recorrer cada vertice u y verificar si es vecino de v
+		for u in range(G.vertices):
 			if (not u == v) and (G.get_edge(u, v) == 1):
 				N.append(u);
 		return N;
 	
-	def intersection_set(self, A, B):	#	conjunto interseccion
-		I = [];
-		for v in A:
-			if o.contains(B, v): I.append(v);
-		return I;
+	# Grados de un vértice
+	def degrees(self, v, G, tst):
+		
+		# Devolver el tamaño del conjunto de vecinos
+		N = self.neighbor_set(v, G);	# conjunto de vecinos de v
+		
+		# Imprimir vecinos de v1
+		d = len(N);	# tamaño del conjunto de vecinos
+		if tst: print("vecinos de "+str(v)+": "+str(N)+" para un total de "+str(d));
+		
+		return d;
 	
-	def bron_kerbosch(self, R_arg, P_arg, X_arg, G, lvl):	# alg. bron-kerbosch para cliques maximales (forma basica)
+	# Alg. Bron-Kerbosch para cliques maximales (forma básica)
+	def bron_kerbosch(self, G, P_arg, tst = False, R_arg = [], X_arg = [], lvl = 1):
 		
-		if lvl == 1: self.found_cliques = [];	# limpiar cliques de algun grafo anterior
 		'''
-		Sin pivoting:
-		
-		La forma basica del algoritmo Bron-Kerboch es una recursión con retroceso que busca todos los cliques maximales en un grafo dado, G. En general, dados tres conjuntos disyuntos de vertices R, P, y X, encuentra los cliques maximales que incluyen todos los vertices de R, algunos de los vertices de P, y ninguno de los vertices de X. En cada llamada al algoritmo, P y X son conjuntos disyuntos cuya union consiste en aquellos vertices que forman cliques cuando se añaden a R. En otras palabras, P U X es el conjunto de vertices que están unidos a cualquier elemento de R. Cuando P y X son ambos vacios, no hay más elementos que puedan ser agregados a R, de modo que R es un clique maximal y el algoritmo devuelve R.
-		
-		La recursión inicia estableciendo R y X como vacíos, y a P como el conjunto de vertices del grafo (Si G(V,E), P=V). Dentro de cada llamada recursiva, el algoritmo considera los vertices en P sucesivamente; si no hay tales vertices, se reporta R como clique maximal (Si X es vacio), o se retrocede. Para cada vertice v en P, se hace una llamada recursiva en la que v es agregado a R y en la cual P y X son restringidos al conjunto vecino N(v) de v, que encuentra y reporta todas las extensiones clique de R que contienen v. Entonces, se mueve a v de P a X para excluirlo de los futuros cliques a considerar y continua con el siguiente vértice en P.
+		Sin vértices pivote:
+		La idea es hacer un arbol de búsqueda en el que cada rama acumula en R los vértices que han sido vecinos en todos los pasos anteriores, estos candidatos están en P (de los elmentos de P se seleccionan algunos en concreto, por lo que no es una cola) y al descartarse se trasladan a X. 
 		'''
 		
-		R = R_arg[:];	# computar sin alterar los valores del grafo
-		P = P_arg[:];
-		X = X_arg[:];
+		# Computar sin alterar los valores de otras ramas
+		P = P_arg.copy();
+		R = R_arg.copy();
+		X = X_arg.copy();
 		
-		#print("----------> llamada: nivel = "+str(lvl));
-		#print("R: "+str(R));
-		#print("P: "+str(P));
-		#print("X: "+str(X));
-		if P == [] and X == []: 
-			#print("clique: "+str(R));
+		# Limpiar cliques al comenzar
+		if lvl == 1: self.found_cliques = [];
+		
+		# Imprmir entrada
+		if tst:
+			print("----------> llamada BK: nivel = "+str(lvl));
+			print("R: "+str(R));
+			print("P: "+str(P));
+			print("X: "+str(X));
+		
+		# Guardar R como clique max. si P y X son vacíos
+		if P == [] and X == []:
 			self.found_cliques.append(R);
+		
+		# Recorrer vértices de P hasta que, por eliminación, P sea vacío
 		while not P == []:
-			v = P[0];
-			Nv = self.neighbor_set(v, G);
-			P_int_Nv = self.intersection_set(P, Nv);
-			X_int_Nv = self.intersection_set(X, Nv);
-			#print("vertice en P: "+str(v)+" tiene vecinos "+str(Nv)+". P_Nv = "+str(P_int_Nv)+" y P_Nv = "+str(X_int_Nv));
-			self.bron_kerbosch(R + [v], P_int_Nv, X_int_Nv, G, lvl+1);
-			#print("movemos "+str(v)+" desde P = "+str(P)+" hasta X = "+str(X));
+		
+			v = P[0];	# Escoger el primer vertice de P, v
+			Nv = self.neighbor_set(v, G);	# Calcular vecinos de v
+			P_int_Nv = self.intersection_set(P, Nv);	# Restringir P a los vecinos de v
+			X_int_Nv = self.intersection_set(X, Nv);	# Restringir X a los vecinos de v
+			
+			# Imprimir llamada recursiva que se hará
+			if tst: print("vertice en P: "+str(v)+" tiene vecinos "+str(Nv)+". P_Nv = "+str(P_int_Nv)+" y X_Nv = "+str(X_int_Nv));
+			
+			# Hacer la llamada recursiva
+			self.bron_kerbosch(G, P_int_Nv, tst, R + [v], X_int_Nv, lvl+1);
+			
+			# Imprimir traslación de v
+			if tst: print("movemos "+str(v)+" desde P = "+str(P)+" hasta X = "+str(X));
+			
+			# Trasladar v desde P hasta X
 			P.remove(v);
 			X.append(v);
-			#print("resulta en: P = "+str(P)+" y X = "+str(X));
+			
+			# Imprimir P y X después de la traslación
+			if tst: print("resulta en: P = "+str(P)+" y X = "+str(X));
 		
 	def bron_kerbosch_pivot(self):
 		
 		'''
 		Con pivoting:
-		
-		La forma basica del algoritmo, descrito arriba, es ineficiente en el caso de grafos con muchos cliques no-maximales: hace una llamada recursiva por cada clique, maximal o no. Para ahorrar tiempo y permitir al algoritmo retroceder más rápido hacia ramas de busqueda que contienen cliques no maximales, Bron y Kerbosch instrodujeron una variante del algoritmo que involucra un "vertice pivote" u, escogido de P (O de forma más general, como posteriores investigaciones mostraron, de P U X). 
-		
+		La forma basica del algoritmo, descrito arriba, es ineficiente en el caso de grafos con muchos cliques no-maximales: hace una llamada recursiva por cada clique, maximal o no. Para ahorrar tiempo y permitir al algoritmo retroceder más rápido hacia ramas de busqueda que contienen cliques no maximales, Bron y Kerbosch introdujeron una variante del algoritmo que involucra un "vertice pivote" u, escogido de P (O de forma más general, como posteriores investigaciones mostraron, de P U X). 	
 		Cualquier clique maximal debe incluir ya sea u o uno de sus no-vecinos porque, de lo contrario, el clique podría aumentar agregándole u. Por lo tanto, solo u y sus no vecinos necesitan ser probados como candidatos para el vértice v que es agregado a R en cada llamada recursiva.
 		'''
 		
+		# Aún no implementado
 		pass;
 	
 	def bron_kerbosch_order(self):
 	
 		'''
 		Con ordenamiento de vertices:
-		
 		Un método alternativo de mejorar la forma basica del algoritmo Bron-Kerbosch involucra renunciar al pivoting en el nivel mas externo de la recusión y, en su lugar, escoger el orden de las llamadas recursivas con cuidado para minimizar los tamaños de los conjuntos P de vertices candidatos dentro de cada llamada recursiva.
-		
 		degen(G) de un grafo G es el minimo numero d tal que todo subgrafo de G tiene un vertice de grado d o menor. Todo grafo tiene un orden de degeneración, un orden de los vertices tal que cada vertice tiene d o menos vecinos que vienen más tarde en el orden; un orden de degeneración puede ser encontrado en tiempo lineal seleccionando repetidamente el vertice de menor grado entre los vertices restantes. Si el orden de los vertices v que el algoritmo Bron-Kerbosch recorre es un orden de degeneración, entonces el conjunto P de vertices candidatos en cada llamada (los vecinos de v que van después en el orden) tendrá, con seguridad, un tamaño de a lo sumo d. El conjunto X de vertices excluidos consistirá en todos los vecinos previos de v, y puede ser mucho más grande que d. En las llamadas recursivas al algoritmo bajo el nivel más alto de recursión, puede emplearse la versión con pivoting.
-		
 		'''
 		
+		# Aún no implementado
 		pass;
 	
-	def comb(self, n, k):	# coef. binomial
-		return int ( m.factorial(n) / ( m.factorial(k) * ( m.factorial(n - k) ) ) );
-	
-	def matula_beck_deg_order(self, G):	# algoritmo de orden de degeneración matula-beck
+	# Alg. Matula-Beck para encontrar un orden de degeneración
+	def matula_beck_deg_order(self, G, tst = False):
 		
 		'''
-		El algoritmo implementa la cola de prioridad para extraer los vertices del grafo, uno a uno, según sus grados y, de esa manera, generar un orden de degeneración
+		El algoritmo "implementa una cola de prioridad" (la prioridad puede cambiar durante su estadía en la cola) para extraer los vértices del grafo según sus grados, uno a uno, y de esa manera, producir un orden de degeneración.
 		'''
 		
-		L = [];	# arreglo de salida (orden de degeneración)
-		d_V = [];	# arreglo de grados de cada vertice (auxiliar para calcular el orden)
-		D = [[]];	# partición de los vertices según su grado (priority queue)
+		L = [];	# Arreglo de salida (orden de degeneración)
+		deg = [];	# Arreglo de grados de cada vertice en el subgrafo actual
+		D = [[]];	# Partición de los vertices según su grado (prioridad)
 		
-		for i in range(G.E.columns):	# calcular grados para cada vertice
-			d_v = 0;
-			for j in range(G.E.rows):
-				if (not i == j) and (G.get_edge(i, j) == 1): d_v += 1;
-			d_V.append(d_v);
+		# Señalar el comienzo
+		if tst: print("---------> Deg. Order MB");
 		
-		print("---------- deg order");
-		print("d_V = "+str(d_V));
+		# Almacenar los grados iniciales en deg
+		for v in range(G.vertices):
+			deg.append(self.degrees(v, G, tst));
 		
-		deg_num = 0;
-		for i in range(len(d_V)):	# calcular partición
+		# Imprimir grados
+		if tst: print("Grados: "+str(deg));
 		
-			if d_V[i] > deg_num:	# ampliar numero de grados maximo si es necesario
-				for j in range(d_V[i] - deg_num):
+		num_parts = 0;	# Número de clases de la partición
+		
+		# Calcular partición
+		for v in range(G.vertices):
+		
+			# Ampliar numero de clases de la partición si es necesario
+			if deg[v] > num_parts:
+				for i in range(deg[v] - num_parts):
 					D.append([]);
-				deg_num = len(D) - 1;
-				
-			D[d_V[i]].append(i);
+				num_parts = len(D) - 1;
+			
+			# Agregar el vertice a su clase
+			D[deg[v]].append(v);
 		
-		print("D = "+str(D));
+		# Imprimir partición
+		if tst: print("Partición: "+str(D));
 		
-		for j in range(len(d_V)):	# repetir por el numero de vertices
-			for i in range(len(D)):	# buscar el menor grado
-				if not D[i] == []:	# si esta clase de la particion no es vacía
-					v = D[i][0];	# seleccionar vertice de la lista D[i]
-					L = [v] + L;	# Agregarlo a L
-					D[i].remove(v);	# quitarlo de la partición
-					print("v = "+str(v)+" puesto en L = "+str(L)+" y removido de D["+str(i)+"] = "+str(D[i]));
-					for w in range(G.E.rows):
-						if (not v == w) and (G.get_edge(v, w) == 1): 	# w es vecino con v
-							if not o.contains(L, w):	# w no está en L
-								d_V[w] = d_V[w] - 1;	# sustraer uno a los grados de w
-								D[d_V[w]].append(w);	# mover w en la partición
-								D[d_V[w]+1].remove(w);
+		# Extraer el vértice de menor grado en el subgrafo restante
+		for j in range(G.vertices):
+		
+			# Extraer un vértice, v, de la cola y ponerlo en L
+			for i in range(len(D)):
+				if not D[i] == []:
+					v = D[i][0];
+					L = [v] + L;
+					D[i].remove(v);
+					
+					# Imprimir operación
+					if tst: print("v = "+str(v)+" puesto en L = "+str(L)+" y removido de D["+str(i)+"] = "+str(D[i]));
+					
+					# Cambiar los grados de los vecinos de v
+					for w in self.neighbor_set(v, G):
+						if not o.contains(L, w):
+							deg[w] = deg[w] - 1;
+							
+							# Cambiar prioridad de w en la cola
+							D[deg[w]].append(w);
+							D[deg[w]+1].remove(w);
+							
+							# Imprimir operación
+							if tst:
 								print("w = "+str(w)+" es vecino de "+str(v)+" y no está en L = "+str(L));
-								print("w = "+str(w)+" tiene un grado menos: dw = "+str(d_V[w])+" y pertenece ahora a D["+str(d_V[w])+"] = "+str(D[d_V[w]]));
+								print("w = "+str(w)+" tiene un grado menos: dw = "+str(deg[w])+" y su prioridad es: D["+str(deg[w])+"] = "+str(D[deg[w]]));
 					break;
 		
-		print("L = "+str(L));
+		# Imprimir orden final
+		if tst: print("Orden de degeneración: L = "+str(L));
 	
-	def calc_cliques(self, GC, panel):	# calcular cliques maximales
-		#print("----------> bron_kerbosch");
-		self.bron_kerbosch([], GC.G.V, [], GC.G, 1);
-		#print(self.found_cliques);
-		aux_names = [];
-		for k in self.found_cliques:
-			aux_names.append("K"+str(len(k))+": "+str(k));
-		GC.auto_add_subs(self.found_cliques, aux_names, panel);
-		panel.sort_subs(GC, True);	# actualizar el panel de subgrafos con los hallazgos
+	# Iteracion del alg. Camino simple
+	def simple_path_next(self, G, R, Vn, tst = False):
 	
-	def next(self, GC, R, V):	# iteracion del algoritmo camino simple
-		for v in GC.V:
-			if o.contains(V, v.id) and GC.G.get_edge(R, v.id) == 1:
-				GC.V[R].set_type('U');	# anterior ruso ahora es U
-				v.set_type('R');
-				V.remove(v.id);
-				return v.id;
-		#print("end of path for R =" + str(R));
-		return R;
+		NR = self.intersection_set(Vn, self.neighbor_set(R, G)); # Vecinos no visitados de R
+		
+		# Si no quedan vecinos sin visitar, terminar el camino en este sentido.
+		if NR == []:
+		
+			# Imprimir operación
+			if tst: print("fin del camino para R = " + str(R));
+			return R;
+		
+		# si aún hay, tomar el primero, v, poner R en los vértices UE y marcar v como visitado 
+		else:
+			v = NR[0];
+			if not o.contains(self.ue, R): self.ue.append(R);
+			Vn.remove(v);
+			
+			# Imprimir operación
+			if tst: print("El siguiente de R = " + str(R) + " es: "+str(v));
+			return v;
 
-	def simple_path(self, GC, text_f, s, panel):	# encontrar camino simple desde s
+	# Encontrar un camino desde un vértice fijo, s
+	def simple_path(self, G, s, tst = False):
 		
-		if GC.set_sub: return;	# no interferencia con la funcion de subgrafos
+		'''
+		Encontrar un camino simple desde s, implementa un deck para extender el camino hacia dos lados desde el vértice inicial
+		'''
 		
-		G = GC.G;	# grafo asociado al visual
-		P = deque(); # camino
-		V = list(G.V);	# vertices no visitados
-		GC.V[s].set_type('R');	# vertice s es ruso
-		R1 = s;	# ruso 1
-		R2 = s;	# ruso 2
+		P = deque(); # Camino
+		V = G.V.copy();	# Vertices no visitados
+		self.R1 = s;	# Ruso 1
+		self.R2 = s;	# Ruso 2
 		
-		for v in GC.V:	# reiniciar tipos de los vertices
-			v.set_type('-');
+		# Señalar el comienzo
+		if tst: print("---------> Simple Path:");
 		
-		V.remove(s);	# comenzar en s
+		# Limpiar vértices al comenzar
+		self.ue = [];
+		self.france = [];
+		self.peninsular = [];
+		self.uk = [];
+		
+		# Comenzar el camino en s
+		V.remove(s);
 		P.append(s);
-		#print("V = "+str(V));
-		#print("Vertices = "+str(G.V));
 		
-		vf = self.next(GC, R1, V);
-		#print("R1 = "+str(vf));
-		#print("V = "+str(V));
-		while(not vf == R1):	# agregar vertices en un sentido
-			R1 = vf;
-			P.append(R1);
-			vf = self.next(GC, R1, V);
-			#print("R1 = "+str(vf));
-			#print("V = "+str(V));
+		# Extender el camino hacia la dirección de R1
+		vf = self.simple_path_next(G, self.R1, V, tst);
+		while(not vf == self.R1):
+			self.R1 = vf;
+			P.append(self.R1);
+			vf = self.simple_path_next(G, self.R1, V, tst);
 		
-		vf = self.next(GC, R2, V);
-		#print("R2 = "+str(vf));
-		#print("V = "+str(V));
-		while(not vf == R2):	# agregar vertices en el sentido contrario
-			R2 = vf;
-			P.appendleft(R2);
-			vf = self.next(GC, R2, V);
-			#print("R2 = "+str(vf));
-			#print("V = "+str(V));
-		#print("V = "+str(V));
-		#print(str(P));
+		# Determinar R1 definitivo
+		self.R1 = vf;
+		if o.contains(self.ue, self.R1): self.ue.remove(self.R1);
 		
-		GC.V[R2].set_type('R');
-		GC.V[R1].set_type('R');	# Determinar rusos
+		# Imprimir camino parcial
+		if tst: print("Camino parcial: "+str(P));
 		
-		for v in V:	# Determinar los franceses triviales
-			count = 0;
-			for i in range(G.E.columns):
-				if G.get_edge(v, i) == 1 and GC.V[i].type == 'U': 
+		# Extender el camino hacia la dirección de R2
+		vf = self.simple_path_next(G, self.R2, V, tst);
+		while(not vf == self.R2):
+			self.R2 = vf;
+			P.appendleft(self.R2);
+			vf = self.simple_path_next(G, self.R2, V, tst);
+		
+		# Determinar R2 definitivo
+		self.R2 = vf;
+		if o.contains(self.ue, self.R2): self.ue.remove(self.R2);
+		
+		# Imprimir camino calculado
+		if tst: print("Camino calculado: "+str(P));
+		
+		# Determinar los tipos para los vértices no visitados
+		for v in V:
+			count = 0;	# Contador de vecinos UE
+			
+			# Contar los vecinos UE de v
+			for u in self.ue:
+				if G.get_edge(v, u) == 1:
 					count += 1;
-					#print("edge ("+str(v)+", "+str(i)+") = "+str(G.get_edge(v, i))+" esta en G");
-			if count > 1: GC.V[v].set_type('F');
-			elif count == 1: GC.V[v].set_type('F/P');
-			else: GC.V[v].set_type('F/P/I');
+					
+			# Decidir sobre v
+			if count > 1: 
+				if tst: print(str(v)+" es francés.");
+				self.france.append(v);
+			elif count == 1:
+				if tst: print(str(v)+" es peninsular o francés.");
+				self.peninsular.append(v);
+			else:
+				if tst: print(str(v)+" Puede ser cualquier tipo.");
+				self.uk.append(v);
 		
-		GC.log = "camino simple calculado."
-		text_f.text = "camino simple: "+str(list(P)) +", tamaño = "+str(len(P));
-		
-		GC.auto_add_subs([list(P)], ["camino simple"], panel);	# agregar el camino al panel de subgrafos
-		GC.auto_add_subs([V], ["periferias"], panel);	# agregar el grafo de periferias de subgrafos
-		
-		for e in V:	# cambiar etiquetas del grafo
-			P.append(e);
-		#print(str(P));
-		GC.lbl_change_sev(P);
+		# imprimir tipos de vértice
+		if tst:
+			print("R1: "+str(self.R1));
+			print("R2: "+str(self.R2));
+			print("U: "+str(self.ue));
+			print("F: "+str(self.france));
+			print("F/P: "+str(self.peninsular));
+			print("F/P/E: "+str(self.uk));
 
-class VertexCanvas(Widget):	# vertice visual
+# Vértice visual
+class VertexCanvas(Widget):
 	
-	id = NumericProperty(-1);	# id del vertice
-	pos_x = NumericProperty(0);	# posicion x
-	pos_y = NumericProperty(0);	# posicion y
-	d = NumericProperty(0);	# diametro
-	selected = BooleanProperty(False);	# seleccionado para ser deslizado
+	id = NumericProperty(-1);	# Id del vertice
+	pos_x = NumericProperty(0);	# Posición x
+	pos_y = NumericProperty(0);	# Posición y
+	colliding = BooleanProperty(False);	# Colisionando con otro vértice
+	selected = BooleanProperty(False);	# Seleccionado para ser deslizado
+	
 	type = StringProperty('-');	# tipo de vertice
 	sub = BooleanProperty(False); # seleccionado para subgrafo
 	
-	def set_type(self, t):	# establecer tipo
-		self.type = t;
-	
-	def set_d(self, d):	# establecer diametro
-		self.d = d;
-	
-	def set_id(self, id):	# establecer id
+	# Establecer id
+	def set_id(self, id):
 		self.id = id;
 	
-	def pos_set(self, x, y):	# establecer posicion
+	# Establecer posición
+	def pos_set(self, x, y):
 		self.pos_x = x;
 		self.pos_y = y;
 	
-	def select(self):	# seleccionar
-		self.selected = True;
+	# Establecer tipo
+	def set_type(self, t):
+		self.type = t;
 	
-	def unselect(self):	# deseleccionar
-		self.selected = False;
+	# Seleccionar/deseleccionar
+	def select(self, select):
+		self.selected = select;
+	
+	# Verficar intersección con otros vértices
+	def collide_siblings(self, d):
 		
+		# Recorrer vértices hermanos
+		for v in self.parent.V:
+		
+			# Verificar si las hitboxes se intersectan
+			if (not v.id == self.id) and (((v.pos_x <= self.pos_x <= v.pos_x + d) and (v.pos_y <= self.pos_y <= v.pos_y + d)) or ((v.pos_x <= self.pos_x + d <= v.pos_x + d) and (v.pos_y <= self.pos_y + d <= v.pos_y + d)) or ((v.pos_x <= self.pos_x <= v.pos_x + d) and (v.pos_y <= self.pos_y + d <= v.pos_y + d)) or ((v.pos_x <= self.pos_x + d <= v.pos_x + d) and (v.pos_y <= self.pos_y <= v.pos_y + d))):
+				self.colliding = True;
+				return;
+		self.colliding = False;
+	
+	# Mover hacia una dirección aleatoria al estar colisionado
+	def separate(self, d, tst = False):
+	
+		# Comprobar si está colisionado
+		self.collide_siblings(d);
+		if self.colliding: 
+		
+			ra1 = r.random(); # Dirección horizontal
+			ra2 = r.random(); # Dirección vertical
+			ra3 = r.random(); # Magnitud
+			
+			if ra1 <= 0.5:
+			
+				# Izquierda, Arriba
+				if ra2 <= 0.5:
+					self.pos_x -= ra3 * d; 
+					self.pos_y += ra3 * d;
+					
+				# Izquierda, Abajo
+				else: 
+					self.pos_x -= ra3 * d; 
+					self.pos_y -= ra3 * d;
+			else:
+			
+				# Derecha, Arriba
+				if ra2 <= 0.5: 
+					self.pos_x += ra3 * d; 
+					self.pos_y += ra3 * d;
+				
+				# Derecha, Abajo
+				else: 
+					self.pos_x += ra3 * d; 
+					self.pos_y -= ra3 * d;
+	
+	# Al levantar el clic
+	def on_touch_up(self, touch):
+	
+		# Deseleccionar si se levanta el clic
+		if self.selected: self.select(False);
+	
+	# Al hundir el clic
 	def on_touch_down(self, touch):
-		if (not self.collide_siblings()) and touch.x >= self.pos_x and touch.x < self.pos_x + self.d and touch.y >= self.pos_y and touch.y < self.pos_y + self.d:
+	
+		d = self.parent.d; # Radio del vértice
+	
+		# Si el ratón está sobre el vértice al momento de hundir y ningún otro lo intersecta
+		if (not self.colliding) and touch.x >= self.pos_x and touch.x < self.pos_x + d and touch.y >= self.pos_y and touch.y < self.pos_y + d:
 			if not self.parent.set_sub:
+			
+				# Seleccionar si se le hizo clic, agregándole una marca
 				self.parent.set_mark(self.id);
-				self.select();	# seleccionar si se le hizo clic y no esta activa la func. subgrafo, agregar marca
+				self.select(True);
+			
 			else:	# seleccionar con un clic para determinar subgrafo
 				if not self.sub:
 					self.parent.V_sub.append(self.id);
@@ -423,44 +705,28 @@ class VertexCanvas(Widget):	# vertice visual
 					self.sub = False;
 					self.parent.log += '';
 				self.parent.show_subgraph();
-			#print("mark"+str(self.parent.mark));
-			#print("v"+str(self.id));
 	
-	def on_touch_up(self, touch):
-		if self.selected: self.unselect();	# deseleccionar si se levanta el clic
-	
-	def collide_siblings(self):	# verficar interseccion con otros vertices
-		for v in self.parent.V:
-			if (not v.id == self.id) and (((v.pos_x <= self.pos_x <= v.pos_x + v.d) and (v.pos_y <= self.pos_y <= v.pos_y + v.d)) or ((v.pos_x <= self.pos_x + self.d <= v.pos_x + v.d) and (v.pos_y <= self.pos_y + self.d <= v.pos_y + v.d)) or ((v.pos_x <= self.pos_x <= v.pos_x + v.d) and (v.pos_y <= self.pos_y + self.d <= v.pos_y + v.d)) or ((v.pos_x <= self.pos_x + self.d <= v.pos_x + v.d) and (v.pos_y <= self.pos_y <= v.pos_y + v.d))):
-				return True;
-		return False;
-	
-	def separate(self):	# separar de otro vertice
-		if self.collide_siblings():
-			ra1 = random.random();
-			ra2 = random.random();
-			if ra1 <= 0.5:
-				if ra2 <= 0.5:
-					self.pos_x+=ra1*10; 
-					self.pos_y+=ra1*10; 
-				else: 
-					self.pos_x+=ra1*10; 
-					self.pos_y-=ra1*10;
-			else:
-				if ra2 <= 0.5: 
-					self.pos_x-=ra1*10; 
-					self.pos_y+=ra1*10; 
-				else: 
-					self.pos_x-=ra1*10; 
-					self.pos_y-=ra1*10;
-	
+	# Al mover el ratón
 	def on_touch_move(self, touch):
-		if not self.parent.set_sub:	# mover vertices solo si no esta activa la funcion de subgrafo
-			if self.selected:	# mover si el clic se mantiene, quitar marcas
-				self.pos_set(touch.x - self.d/2, touch.y - self.d/2);
+	
+		d = self.parent.d;	# Radio del vértice
+	
+		# Mover vértice solo si no está activa la función de subgrafo.
+		if not self.parent.set_sub:
+		
+			# Mover vértice si está seleccionado y el clic se mantiene.
+			if self.selected:
+			
+				# Llevar el vértice hacia el ratón
+				self.pos_set(touch.x - d / 2, touch.y - d / 2);
+				
+				# Quitar todas las marcas al mover un vértice de sitio
 				self.parent.set_mark(-1);
-			elif touch.x >= self.pos_x and touch.x < self.pos_x + self.d and touch.y >= self.pos_y and touch.y < self.pos_y + self.d:
-				self.select();	# seleccionar con el paso del cursor también (deslizar)
+			
+			# Seleccionar el vértice si aún no lo estaba
+			elif touch.x >= self.pos_x and touch.x < self.pos_x + d and touch.y >= self.pos_y and touch.y < self.pos_y + d:
+				self.select(True);
+		
 		else:	# seleccionar con el paso del cursos para determinar subgrafo
 			if touch.x >= self.pos_x and touch.x < self.pos_x + self.d and touch.y >= self.pos_y and touch.y < self.pos_y + self.d:
 				if not self.sub:
@@ -470,21 +736,216 @@ class VertexCanvas(Widget):	# vertice visual
 					self.parent.log += '\n'+"tipo = " + str(self.type);
 					self.parent.show_subgraph();
 
-class GraphCanvas(Widget):	# grafo visual
+# Dibujante de grafos
+class GraphCanvas(Widget):
 	
-	G = ObjectProperty(Graph());	# grafo asociado
-	V = ObjectProperty([]);	# vertices visuales
-	d = NumericProperty(0);	# diametro
-	ds = ObjectProperty([]);	# cambio de tamaño del lienzo
-	original = BooleanProperty(True);	# ver aristas del grafo
-	complement = BooleanProperty(False);	# ver aristas del complemento
+	d = NumericProperty(0);	# Diámetro de los vértices
+	V = ObjectProperty(None);	# Vértices visuales
+	view_V = ObjectProperty([]); # Subgrafo a mostrar
+	original = BooleanProperty(True);	# Ver aristas del grafo
+	complement = BooleanProperty(False);	# Ver aristas del complemento
+	
 	mark = NumericProperty(-1);	# primer vertice marcado
 	end = NumericProperty(-1);	# segundo vertice marcado
 	log = StringProperty('');	# output
 	set_sub = BooleanProperty(False); # se está seleccionando un subgrafo
-	V_sub = ObjectProperty([]);	# vertices del subgrafo en construccion
+	V_sub = ObjectProperty([]);	# vertices del subgrafo en construcción
 	display_new_sub = BooleanProperty(True);	# bandera para el panel
-	view_V = ObjectProperty([]);	# vertices a mostrar
+	
+	# Actualizar el lienzo
+	def update(self, G, d, tst = False):
+		
+		# Inicializar valores si no se ha hecho aún
+		if self.V == None: self.init(G, d, tst);
+		
+		# Mover los vértices visuales que estén juntos
+		for v in self.V:
+			if not v.selected: v.separate(d, tst);
+		
+		# Redibujar
+		self.draw(G);
+	
+	# Valores iniciales del lienzo
+	def init(self, G, d, tst = False):
+		
+		# Establecer dibujo inicial
+		self.set_graph(G, tst);
+		
+		# Establecer el diámetro inicial de los vértices
+		self.d = d;
+		
+		# Imprimir vértices a representar
+		if tst:
+			for v in self.V:
+				print("Vértice visual agregado: "+str(v.id));
+			print("Subgrafo: "+str(self.view_V));
+	
+	# Establecer el grafo a representar
+	def set_graph(self, G, tst = False):
+	
+		# No interferencia con la funcion de subgrafos
+		#if self.set_sub: return;
+		
+		# Limpiar lienzo
+		self.clear_widgets(self.children);
+		
+		# Vaciar lista de vértices visuales
+		self.V = [];
+		
+		# Ver, por defecto, el grafo en su totalidad
+		self.view_V = G.get_sub('self');
+		
+		# Bandera verde para agregar el grafo al panel
+		#self.display_new_sub = True;
+		
+		# Agregar vértices visuales
+		for v in range(G.vertices):
+			u = VertexCanvas();
+			u.set_id(v);
+			self.V.append(u);
+			self.add_widget(self.V[v]);
+		
+		#  Recalcular posiciones en el lienzo
+		self.recalc_vertexes_pos(tst);
+	
+	# Reiniciar posiciones de los vertices
+	def recalc_vertexes_pos(self, tst = False):
+	
+		n = len(self.V); # Número de vértices visuales
+		r = self.height / 3; # Radio del círculo en torno al que se ubican los vértices
+		
+		# Quitar marcas al reiniciar
+		#self.set_mark(-1);
+
+		# Limpiar el log
+		#if not self.set_sub: self.log = '';
+		
+		# Imprimir tamaño de lienzo al momento del cálculo
+		print("Tamaño del lienzo usado para calcular los vértices= "+str(self.size));
+		
+		# Asignar posiciones en torno a un círculo 
+		for v in self.V:
+			angle = (2 * v.id * m.pi) / n;	# Ángulo del vértice v
+			cx = r * m.cos(angle) + (self.width / 2); # Centro x
+			cy = r * m.sin(angle) + (self.height / 2) # Centro y
+			
+			# Guardar posición
+			v.pos_set(cx, cy);
+			
+			# Notificar posicionamiento
+			if tst:
+				print("Posición del vértice v["+str(v.id)+"] = ["+str(v.pos_x)+", "+str(v.pos_y)+"]");
+	
+	# Rutina de dibujo
+	def draw(self, G):
+		
+		# Limpiar el dibujo anterior
+		self.canvas.clear();
+		
+		# Fondo oscuro
+		with self.canvas:
+			Color(.27, 0, .15, mode='rgb');
+			Rectangle(size=self.size, pos=self.pos);
+		
+		# Dibujar aristas
+		self.draw_edges(G);
+		
+		# Dibujar vértices
+		self.draw_vertexes();
+		
+		'''
+		with self.canvas:
+			Label(font_size='15', text='>> '+self.log, center_x=self.width/3 - 12, top=self.height/6);
+		'''
+	
+	# Dibujar los vertices del subgrafo actual
+	def draw_vertexes(self):
+	
+		# Si un vértice está listado en la vista actual, dibujarlo.
+		for v in self.V:
+			if o.contains(self.view_V, v.id): self.draw_vertex(v);
+
+	# Dibujar un vertice
+	def draw_vertex(self, v):
+	
+		# Dibujo del vértice
+		with self.canvas:
+			
+			# Borde blanco
+			Color(1, 1, 1, mode='rgb');
+			Line(ellipse=(v.pos_x, v.pos_y, self.d, self.d));
+			
+			# Color según el estado del vértice gráfico
+			if not v.selected: Color(.27, 0, .15, mode='rgb');	# Fondo
+			if self.mark == v.id: Color(1, 1, 0, mode='rgb');	# Amarillo
+			#if self.end == v.id: Color(200, 0, 10, mode='rgb');
+			#if v.sub: Color(0, 100, 50, mode='rgb');
+			
+			# Relleno
+			Ellipse(pos=(v.pos_x, v.pos_y), size=(self.d, self.d));
+			
+			# Etiqueta
+			Label(font_size='10', center_x=v.pos_x+self.d/2, top=v.pos_y+60, text=str(v.id));
+	
+	# Dibujar las aristas
+	def draw_edges(self, G):
+	
+		r = self.d/2; # Radio de los vértices
+		
+		# Recorrer los pares de vértices visuales
+		with self.canvas:
+			for v in self.V:
+				for u in self.V:
+					if v.id > u.id:
+					
+						# Verificar si ambos vértices están en el subgrafo a representar
+						if o.contains(self.view_V, v.id) and o.contains(self.view_V, u.id):
+						
+							# Dibujar una arista azul si está activado el complemento
+							if self.complement and G.get_edge(u.id, v.id) == 0:
+								Color(0, 0, 1, mode='rgb');
+								self.draw_edge(v, u, r);
+							
+							# Dibujar una arista roja si está activado el grafo original
+							elif self.original and G.get_edge(u.id, v.id) == 1:
+								Color(1, 0, 0, mode='rgb');
+								self.draw_edge(v, u, r);
+
+	# Dibujar una arista
+	def draw_edge(self, v1, v2, r):
+		x1 = v1.pos_x;
+		y1 = v1.pos_y;
+		x2 = v2.pos_x;
+		y2 = v2.pos_y;
+		Line(points=[r+x1 ,r+y1 ,r+x2 ,r+y2], width=1);
+		
+	# Manejo de marcas
+	def set_mark(self, v):
+		if self.set_sub: return;	# no interferencia con la funcion de subgrafos
+		if v == -1:	# quitar 1ra y 2da marcas
+			self.mark = v;
+			self.end = v;
+			self.log = '';
+		elif self.mark == -1:	# agregar 1ra marca si no hay ninguna
+			self.mark = v;
+			self.log = "v = " + str(v);	# info del vertice
+			self.log += '\n'+"tipo = " + str(self.V[v].type);
+		elif self.mark == v: 	# quitar marcas si se vuelve a escoger un vertice marcado
+			self.mark = -1;
+			self.end = -1;
+			self.log = '';
+		else:
+			if v == self.end:	# invertir arista si se vuelve a escoger el segundo vertice marcado
+				self.G.opp_edge(self.mark, self.end);
+				#self.G.E.print_matrix();
+				self.log = "edge (" + str(self.mark) + ", " + str(self.end) + ") trasladado.";
+				self.mark = -1;
+				self.end = -1;
+				return;
+			e = self.G.get_edge(self.mark, v);	# informar sobre la arista si se marca un segundo vertice
+			self.end = v;
+			if e == 0: self.log = "edge (" + str(self.mark) + ", " + str(v) + ") está en Com."+'\n'+"(Otro clic para trasladar)"; 
+			else: self.log = "edge (" + str(self.mark) + ", " + str(v) + ") está en G."+'\n'+"(Otro clic para trasladar)"; 
 	
 	def auto_add_subs(self, subs, names, panel):	# agregar subgrafos automaticamente
 		for i in range(len(subs)):
@@ -547,33 +1008,6 @@ class GraphCanvas(Widget):	# grafo visual
 		self.V[m].pos_set(x1, y1);
 		self.V[n].pos_set(x2, y2);
 	
-	def set_mark(self, v):	# manejo de marcas
-		if self.set_sub: return;	# no interferencia con la funcion de subgrafos
-		if v == -1:	# quitar 1ra y 2da marcas
-			self.mark = v;
-			self.end = -1;
-			self.log = '';
-		elif self.mark == -1:	# agregar 1ra marca si no hay ninguna
-			self.mark = v;
-			self.log = "v = " + str(v);	# info del vertice
-			self.log += '\n'+"tipo = " + str(self.V[v].type);
-		elif self.mark == v: 	# quitar marcas si se vuelve a escoger un vertice marcado
-			self.mark = -1;
-			self.end = -1;
-			self.log = '';
-		else:
-			if v == self.end:	# invertir arista si se vuelve a escoger el segundo vertice marcado
-				self.G.opp_edge(self.mark, self.end);
-				#self.G.E.print_matrix();
-				self.log = "edge (" + str(self.mark) + ", " + str(self.end) + ") trasladado.";
-				self.mark = -1;
-				self.end = -1;
-				return;
-			e = self.G.get_edge(self.mark, v);	# informar sobre la arista si se marca un segundo vertice
-			self.end = v;
-			if e == 0: self.log = "edge (" + str(self.mark) + ", " + str(v) + ") está en Com."+'\n'+"(Otro clic para trasladar)"; 
-			else: self.log = "edge (" + str(self.mark) + ", " + str(v) + ") está en G."+'\n'+"(Otro clic para trasladar)"; 
-	
 	def on_com_active(self, value):	# on/off aristas complemento
 		if value:
 			self.complement = True;
@@ -585,89 +1019,6 @@ class GraphCanvas(Widget):	# grafo visual
 			self.original = True;
 		else:
 			self.original = False;
-	
-	def recalc_vertexes_pos(self):	# reiniciar posiciones de los vertices
-		n = len(self.V);
-		self.set_mark(-1);	# quitar marcas al reiniciar
-		if not self.set_sub: self.log = '';
-		for i in range(n):
-			angle = (2 * i * m.pi) / n;
-			self.V[i].pos_set(200 * m.cos(angle) + (self.width / 2), 200 * m.sin(angle) + (self.height / 2));
-	
-	def set_graph(self, G):	# establecer grafo con el cual trabajar
-		if self.set_sub: return;	# no interferencia con la funcion de subgrafos
-		self.clear_widgets(self.children);	# limpiar canvas
-		self.V = [];	# vaciar lista de vertices (visuales)
-		self.G = G;		# establecer nuevo grafo
-		self.view_V = self.G.get_sub('self')[1];	# ver, por defecto, el grafo en su totalidad
-		self.display_new_sub = True;	# bandera verde para agregar el grafo al panel
-		for i in range(len(self.G.V)):	# agregar verticeas (visuales)
-			v = VertexCanvas();
-			v.set_id(i);
-			v.set_d(self.d);
-			self.V.append(v);
-			self.add_widget(self.V[i]);
-		self.recalc_vertexes_pos();
-	
-	def init(self, G, d):	# rutina inicio
-		self.d = d;
-		self.ds.append(self.width);
-		self.ds.append(self.height);
-		self.set_graph(G);
-	
-	def draw_vertex(self, v):	# dibujar un vertice
-		with self.canvas:
-			Color(200, 200, 200, mode='rgb');
-			Line(ellipse=(v.pos_x, v.pos_y, self.d, self.d));
-			if not v.selected: Color(0, 0, .05, mode='hsv');
-			if self.mark == v.id: Color(50, 100, 0, mode='rgb');
-			if self.end == v.id: Color(200, 0, 10, mode='rgb');
-			if v.sub: Color(0, 100, 50, mode='rgb');
-			Ellipse(pos=(v.pos_x, v.pos_y), size=(self.d, self.d));
-			Label(font_size='10', center_x=v.pos_x+self.d/2, top=v.pos_y+60, text=str(v.id));
-	
-	def draw_vertexes(self):	# dibujar los vertices
-		if not self.ds == self.size:
-			self.ds = self.size;
-			self.recalc_vertexes_pos();
-		else:
-			for v in self.V:
-				if not v.selected: v.separate();
-				if o.contains(self.view_V, v.id): self.draw_vertex(v);
-	
-	def draw_edge(self, v1, v2, d):	# dibujar una arista
-		x1 = v1.pos_x;
-		y1 = v1.pos_y;
-		x2 = v2.pos_x;
-		y2 = v2.pos_y;
-		Line(points=[d+x1 ,d+y1 ,d+x2 ,d+y2], width=1);
-	
-	def draw_edges(self):	# dibujar las aristas
-		d = self.d/2;
-		with self.canvas:
-			for i in range(self.G.E.rows):
-				for j in range(self.G.E.columns):
-					if j > i:
-						if o.contains(self.view_V, self.V[i].id) and o.contains(self.view_V, self.V[j].id):
-							if self.complement and self.G.E.data[i][j] == 0:
-								Color(0, 0, 255, mode='rgb');
-								self.draw_edge(self.V[i], self.V[j], d);
-							elif self.original and self.G.E.data[i][j] == 1:
-								Color(255, 0, 0, mode='rgb');
-								self.draw_edge(self.V[i], self.V[j], d);
-
-	def draw(self):	# rutina de dibujo
-		self.canvas.clear();
-		with self.canvas:
-			Color(0, 0, .05, mode='hsv');
-			Rectangle(size=[self.width, self.height], pos=self.pos);
-		self.draw_edges();
-		self.draw_vertexes();
-		with self.canvas:
-			Label(font_size='15', text='>> '+self.log, center_x=self.width/3 - 12, top=self.height/6);
-	
-	def update(self, dt):	# para ejecutar segun reloj
-		self.draw();	# redibujar
 
 class SubPanel(GridLayout):	# panel de subgrafos
 	
@@ -727,7 +1078,7 @@ class SubPanel(GridLayout):	# panel de subgrafos
 	def display_subgraph(self, GC, name):	# pintar en el canvas el subgrafo seleccionado
 		arr = GC.G.get_sub(name)[1];
 		name_sub = GC.G.get_sub(name)[0];
-		print(GC.G.subgraph(name_sub));
+		print(GC.G.get_subgraph(name_sub));
 		#print("array to display: "+str(arr)+" from sub named: "+str(name_sub));
 		GC.view_V = arr;
 
@@ -775,25 +1126,34 @@ class SubPanel(GridLayout):	# panel de subgrafos
 		self.add_widget(self.up_btn);
 		self.add_widget(self.dwn_btn);
 
-class GraphApp(App):	# aplicacion
+# Aplicacion gráfica
+class GraphApp(App):
+	
+	G = Graph(); # Grafo principal
+	n = 0; # Número inicial de vértices
+	d = 0; # Diámetro de los vértices visuales
+	
+	# Preparar un grafo inicial
+	def prepare_graph(self, n = 1, d = 20, p = .2):
+		
+		# Establecer el diámetro de los vértices
+		self.d = d;
+		
+		# Establecer el número de vértices
+		self.n = n
+		
+		# Agregar n vértices y hacer aleatorias las aristas
+		for i in range(self.n):
+			self.G.insertVertex();
+		self.G.rand_edges(p);
+		
+		return self.G;
 	
 	def void_text(self, input):
 		input.text = '';
 	
 	def count_subs(self, lbl, panel):	# contador de subgrafos almacenados
 		lbl.text = "subg's: "+str(len(panel.Sub))
-	
-	def rand_graph(self, sub):	# preparar un grafo random
-		sub.restart();
-		G = Graph();
-		for i in range(30):
-			G.insertVertex();
-		G.rand_edges(.2);
-		#print("-------------> random graph:");	
-		#G.E.print_matrix();
-		#print("-------------> its complement:");
-		#G.complement().E.print_matrix();
-		return G;
 	
 	def subgraph(self, value, sub_btn, path_btn, ran_btn, lbl_btn, canvas):	# mostrar/ocultar botones y lanzar funcion
 		sub_btn.disabled = not value;
@@ -810,18 +1170,13 @@ class GraphApp(App):	# aplicacion
 		lbl_btn.disabled = False;
 		canvas.subgraph_confirm(None);
 	
-	def build(self):	# montar la app
+	# Montaje de la app
+	def build(self):
 		
-		# widget raíz
-		root = GridLayout();
-		
+		'''
 		# panel de subgrafos
 		subpanel = SubPanel();
 		subpanel.init();
-		
-		# Pintar grafo inicial
-		canvas = GraphCanvas();
-		canvas.init(self.rand_graph(subpanel), 10);
 		
 		# Calculadora
 		p = Path_Calc();
@@ -888,16 +1243,27 @@ class GraphApp(App):	# aplicacion
 		toolbar.add_widget(txt_input);
 		toolbar.add_widget(lbl_sub_n);
 		
-		# montaje
-		root.cols = 3;
-		root.add_widget(canvas);
-		root.add_widget(toolbar);
-		root.add_widget(subpanel);
+		'''
+		# Preparar grafo inicial
+		self.prepare_graph(10, 30, .1);
 		
-		# actualizaciones (a razon de 60 hercios)  
-		Clock.schedule_interval(canvas.update, 1.0 / 60.0);
+		# Widget raíz
+		root = GridLayout();
+		root.cols = 3;
+		
+		# Lienzo del grafo
+		graph_canvas = GraphCanvas();
+		
+		# Contenido de las 3 columnas (lienzo, barra y panel)
+		root.add_widget(graph_canvas);
+		
+		# Actualizar el contenido del lienzo con el grafo de la aplicación
+		Clock.schedule_interval(lambda x:graph_canvas.update(self.G, self.d, True), 1.0 / 60.0);
+		
+		'''
 		Clock.schedule_interval(lambda x:subpanel.update(canvas), 1.0 / 60.0);
 		Clock.schedule_interval(lambda x:self.count_subs(lbl_sub_n, subpanel), 1.0 / 60.0);
+		'''
 		
 		return root;
 
