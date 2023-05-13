@@ -178,6 +178,13 @@ class Graph:
 		if self.get_edge(n, m) == 0: self.edge(n, m);
 		else: self.edge(n, m, 0);
 	
+	# Insertar varios vértices
+	def insert_Vertexes(self, n):
+		
+		# Repetir n veces la inserción
+		for i in range(n):
+			self.insertVertex();
+	
 	# Agregar un vértice nuevo al grafo
 	def insertVertex(self):
 		
@@ -240,14 +247,16 @@ class Graph:
 	def add_sub(self, sub_V, name):
 		
 		# No agregar vacío si el grafo ya tiene vértices
-		if sub_V == [] and not self.V == []: return;
+		if sub_V == [] and not self.V == []: return None;
 		
 		# Sumar 1 al número de subgrafos al agregar uno nuevo
 		if name not in self.Sub: self.subgraphs += 1;
 		
 		# Reemplazar el subgrafo si ya existe, si no, guardarlo con un el nombre proporcionado/por defecto
-		if name == None: self.Sub['subG'+str(len(self.Sub))] = sub_V;
-		else: self.Sub[name] = sub_V;
+		if name == None: name = 'subG'+str(len(self.Sub));
+		self.Sub[name] = sub_V;
+		
+		return name;
 	
 	# Obtener subgrafo a partir de su nombre
 	def get_subgraph(self, name):
@@ -259,8 +268,7 @@ class Graph:
 		SubV = self.get_sub(name);	# Subconjunto de V asociado al nombre
 		
 		# Insertar los vértices de SubV al grafo
-		for i in range(len(SubV)):
-			SubG.insertVertex();
+		SubG.insert_Vertexes(len(SubV));
 		
 		# Tomar las aristas del grafo involucradas
 		for i in range(SubG.vertices):
@@ -275,8 +283,7 @@ class Graph:
 		Com = Graph();	# Grafo nuevo para no sobreescribir nada
 		
 		# Agregarle el mismo numero de vertices
-		for i in range(self.vertices):
-			Com.insertVertex();
+		Com.insert_Vertexes(self.vertices);
 			
 		# Hacer que grafo Com copie las aristas del complemento
 		Com.copy_inv_other_s_edges(self, True);
@@ -518,7 +525,7 @@ class GraphCalc:
 			if tst: print("El siguiente de R = " + str(R) + " es: "+str(v));
 			return v;
 
-	# Encontrar un camino desde un vértice fijo, s
+	# Encontrar un camino que pase por un vértice fijo, s
 	def simple_path(self, G, s, tst = False):
 		
 		'''
@@ -608,9 +615,9 @@ class VertexCanvas(Widget):
 	pos_y = NumericProperty(0);	# Posición y
 	colliding = BooleanProperty(False);	# Colisionando con otro vértice
 	selected = BooleanProperty(False);	# Seleccionado para ser deslizado
+	sub = BooleanProperty(False); # Seleccionado para construir un subgrafo
 	
 	type = StringProperty('-');	# tipo de vertice
-	sub = BooleanProperty(False); # seleccionado para subgrafo
 	
 	# Establecer id
 	def set_id(self, id):
@@ -628,6 +635,15 @@ class VertexCanvas(Widget):
 	# Seleccionar/deseleccionar
 	def select(self, select):
 		self.selected = select;
+	
+	# Verficar intersección con el cursor
+	def collide_cursor(self, touch):
+		
+		d = self.parent.d; # Radio del vértice
+		
+		if touch.x >= self.pos_x and touch.x < self.pos_x + d and touch.y >= self.pos_y and touch.y < self.pos_y + d:
+			return True;
+		else:	return False;
 	
 	# Verficar intersección con otros vértices
 	def collide_siblings(self, d):
@@ -684,29 +700,31 @@ class VertexCanvas(Widget):
 	# Al hundir el clic
 	def on_touch_down(self, touch):
 	
-		d = self.parent.d; # Radio del vértice
-	
-		# Si el ratón está sobre el vértice al momento de hundir y ningún otro lo intersecta
-		if (not self.colliding) and touch.x >= self.pos_x and touch.x < self.pos_x + d and touch.y >= self.pos_y and touch.y < self.pos_y + d:
-			if not self.parent.set_sub:
+		# Si el ratón está sobre el vértice al momento de hundir clic y ningún otro lo intersecta
+		if (not self.colliding) and self.collide_cursor(touch):
 			
-				# Seleccionar si se le hizo clic, agregándole una marca
+			# Si el dibujante no está creando un subgrafo, gestionar su marca
+			if not self.parent.set_sub:
 				self.parent.set_mark(self.id);
 				self.select(True);
 			
-			else:	# seleccionar con un clic para determinar subgrafo
+			# Si el dibujante está creando un subgrafo, agregarse a la selección.
+			else:
 				if not self.sub:
 					self.parent.V_sub.append(self.id);
+					
+					# Identificarse como vértice del subgrafo para 
 					self.sub = True;
-					self.parent.log = "v = " + str(self.id);	# info del vertice
-					self.parent.log += '\n'+"tipo = " + str(self.type);
+					
+				# Si ya estaba seleccionado, deseleccionarse
 				else:
 					self.parent.V_sub.remove(self.id);
 					self.sub = False;
-					self.parent.log += '';
-				self.parent.show_subgraph();
+				
+				# Actualizar la salida 
+				self.parent.out = str(self.parent.V_sub);
 	
-	# Al mover el ratón
+	# Al mover el ratón sosteniendo el clic
 	def on_touch_move(self, touch):
 	
 		d = self.parent.d;	# Radio del vértice
@@ -724,52 +742,109 @@ class VertexCanvas(Widget):
 				self.parent.set_mark(-1);
 			
 			# Seleccionar el vértice si aún no lo estaba
-			elif touch.x >= self.pos_x and touch.x < self.pos_x + d and touch.y >= self.pos_y and touch.y < self.pos_y + d:
+			elif self.collide_cursor(touch):
 				self.select(True);
 		
-		else:	# seleccionar con el paso del cursos para determinar subgrafo
-			if touch.x >= self.pos_x and touch.x < self.pos_x + self.d and touch.y >= self.pos_y and touch.y < self.pos_y + self.d:
+		# Seleccionar con el paso del cursor si la función estaba activa
+		else:
+			if self.collide_cursor(touch):
 				if not self.sub:
 					self.parent.V_sub.append(self.id);
-					self.sub = True;	# seleccionar con el paso del cursor también (subgrafo)
-					self.parent.log = "v = " + str(self.id);	# info del vertice
-					self.parent.log += '\n'+"tipo = " + str(self.type);
-					self.parent.show_subgraph();
+					self.sub = True;
+				
+					# Actualizar la salida 
+					self.parent.out = str(self.parent.V_sub);
 
 # Dibujante de grafos
 class GraphCanvas(Widget):
 	
+	G = Graph(); # Grafo asociado
 	d = NumericProperty(0);	# Diámetro de los vértices
 	V = ObjectProperty(None);	# Vértices visuales
-	view_V = ObjectProperty([]); # Subgrafo a mostrar
+	view_V = ObjectProperty([]); # Vértices del subgrafo a mostrar
+	view_name = StringProperty(''); # Nombre del subgrafo a mostrar
 	original = BooleanProperty(True);	# Ver aristas del grafo
 	complement = BooleanProperty(False);	# Ver aristas del complemento
-	
-	mark = NumericProperty(-1);	# primer vertice marcado
-	end = NumericProperty(-1);	# segundo vertice marcado
-	log = StringProperty('');	# output
-	set_sub = BooleanProperty(False); # se está seleccionando un subgrafo
-	V_sub = ObjectProperty([]);	# vertices del subgrafo en construcción
-	display_new_sub = BooleanProperty(True);	# bandera para el panel
+	mark = NumericProperty(-1);	# Primer vertice marcado
+	end = NumericProperty(-1);	# Segundo vertice marcado
+	edge_on_G = BooleanProperty(False);	# Arista seleccionada está en el grafo
+	invert = BooleanProperty(False);	# Inveritr Arista seleccionada
+	num_subs = NumericProperty(0);	# Número de subgrafos almacenados de G
+	set_sub = BooleanProperty(False); # Se está seleccionando un subgrafo
+	V_sub = ObjectProperty([]);	# Vétices del subgrafo en construcción
+	out = ''; # Salida de funciones
 	
 	# Actualizar el lienzo
-	def update(self, G, d, tst = False):
+	def update(self, toolbar, subpanel, tst = False, G_0 = Graph(), d_0 = 20):
 		
 		# Inicializar valores si no se ha hecho aún
-		if self.V == None: self.init(G, d, tst);
+		if self.V == None: self.init(G_0, subpanel, d_0, tst);
+		
+		# Invertir la arista seleccionada, si fue solicitado
+		if self.invert:
+			self.G.opp_edge(self.mark, self.end);
+			
+			# Reiniciar marcas al terminar
+			self.set_mark(-1);
+			self.invert = False;
+		
+		# Obtener información de la arista seleccionada
+		if not (self.mark == -1 or self.end == -1):
+			e = self.G.get_edge(self.mark, self.end);
+			if e == 0:	self.edge_on_G = False;
+			else: self.edge_on_G = True;
 		
 		# Mover los vértices visuales que estén juntos
 		for v in self.V:
-			if not v.selected: v.separate(d, tst);
+			if not v.selected: v.separate(self.d, tst);
+		
+		# Contar los subgrafos de G
+		self.num_subs = self.G.subgraphs;
+		
+		# Imprimir salida de funciones
+		toolbar.out(self.out);
 		
 		# Redibujar
-		self.draw(G);
+		self.draw(self.G);
+	
+	# Impresión de logs
+	def print_log(self):
+		msg = '';
+		
+		# Info. subgrafos
+		msg += 'subgrafos: '+str(self.num_subs);
+		msg += '\n subgrafo actual: '+str(self.view_name);
+		
+		# Notificar si la función de subgrafos está activa
+		if self.set_sub: msg += '\n Escoger vértices del nuevo subgrafo.';
+		
+		# Info. del vértice 1
+		msg += '\n vértice 1: ';
+		if not self.mark == -1: msg += str(self.mark);
+		else: msg += '-';
+		
+		# Info. del vértice 2
+		msg += '\n vértice 2: ';
+		if not self.mark == -1: msg += str(self.end);
+		else: msg += '-';
+		
+		# Info. de la arista
+		msg += '\n arista: ';
+		if not (self.mark == -1 or self.end == -1):
+			msg += str(self.mark)+str(self.end);
+			if self.edge_on_G:	msg += ' está en el grafo.';
+			else:	msg += ' está en el complemento.';
+			msg += '\n Otro clic para invertir la arista';
+		else: msg += '-';
+			
+		with self.canvas:	
+			Label(font_size='10', text=msg, center_x=self.width/6, top=self.height/6, halign='left',valign='top');
 	
 	# Valores iniciales del lienzo
-	def init(self, G, d, tst = False):
+	def init(self, G, subpanel, d, tst = False):
 		
 		# Establecer dibujo inicial
-		self.set_graph(G, tst);
+		self.set_graph(G, subpanel, tst);
 		
 		# Establecer el diámetro inicial de los vértices
 		self.d = d;
@@ -781,10 +856,15 @@ class GraphCanvas(Widget):
 			print("Subgrafo: "+str(self.view_V));
 	
 	# Establecer el grafo a representar
-	def set_graph(self, G, tst = False):
+	def set_graph(self, G, subpanel, tst = False):
 	
-		# No interferencia con la funcion de subgrafos
-		#if self.set_sub: return;
+		# Cambiar el grafo asociado
+		self.G = G;
+		
+		# Imprimir grafo recibido
+		if tst: 
+			print("grafo a dibujar");
+			self.G.print_ady();
 		
 		# Limpiar lienzo
 		self.clear_widgets(self.children);
@@ -793,19 +873,20 @@ class GraphCanvas(Widget):
 		self.V = [];
 		
 		# Ver, por defecto, el grafo en su totalidad
-		self.view_V = G.get_sub('self');
+		self.view_V = self.G.get_sub('self');
+		self.view_name = 'self';
 		
-		# Bandera verde para agregar el grafo al panel
-		#self.display_new_sub = True;
+		# Reiniciar el panel de subgrafos
+		subpanel.setup(self);
 		
 		# Agregar vértices visuales
-		for v in range(G.vertices):
+		for v in range(self.G.vertices):
 			u = VertexCanvas();
 			u.set_id(v);
 			self.V.append(u);
 			self.add_widget(self.V[v]);
 		
-		#  Recalcular posiciones en el lienzo
+		# Recalcular posiciones en el lienzo
 		self.recalc_vertexes_pos(tst);
 	
 	# Reiniciar posiciones de los vertices
@@ -815,13 +896,10 @@ class GraphCanvas(Widget):
 		r = self.height / 3; # Radio del círculo en torno al que se ubican los vértices
 		
 		# Quitar marcas al reiniciar
-		#self.set_mark(-1);
-
-		# Limpiar el log
-		#if not self.set_sub: self.log = '';
+		self.set_mark(-1);
 		
 		# Imprimir tamaño de lienzo al momento del cálculo
-		print("Tamaño del lienzo usado para calcular los vértices= "+str(self.size));
+		if tst: print("Tamaño del lienzo usado para calcular los vértices= "+str(self.size));
 		
 		# Asignar posiciones en torno a un círculo 
 		for v in self.V:
@@ -853,10 +931,8 @@ class GraphCanvas(Widget):
 		# Dibujar vértices
 		self.draw_vertexes();
 		
-		'''
-		with self.canvas:
-			Label(font_size='15', text='>> '+self.log, center_x=self.width/3 - 12, top=self.height/6);
-		'''
+		# Imprimir mensajes
+		self.print_log();
 	
 	# Dibujar los vertices del subgrafo actual
 	def draw_vertexes(self):
@@ -868,18 +944,24 @@ class GraphCanvas(Widget):
 	# Dibujar un vertice
 	def draw_vertex(self, v):
 	
-		# Dibujo del vértice
+		# Dibujar el vértice con el lienzo de la clase padre
 		with self.canvas:
 			
 			# Borde blanco
 			Color(1, 1, 1, mode='rgb');
 			Line(ellipse=(v.pos_x, v.pos_y, self.d, self.d));
 			
-			# Color según el estado del vértice gráfico
-			if not v.selected: Color(.27, 0, .15, mode='rgb');	# Fondo
-			if self.mark == v.id: Color(1, 1, 0, mode='rgb');	# Amarillo
-			#if self.end == v.id: Color(200, 0, 10, mode='rgb');
-			#if v.sub: Color(0, 100, 50, mode='rgb');
+			# Vértice del color del fondo, en condiciones normales
+			if not v.selected: Color(.27, 0, .15, mode='rgb');	
+			
+			# Primer vértice marcado con color amarillo
+			if self.mark == v.id: Color(1, 1, 0, mode='rgb');
+			
+			# Segundo vértice marcado con color magenta
+			if self.end == v.id: Color(1, 0, 1, mode='rgb');
+			
+			# Vértice de subgrafo marcado con color cian
+			if v.sub: Color(0, 1, 1, mode='rgb');
 			
 			# Relleno
 			Ellipse(pos=(v.pos_x, v.pos_y), size=(self.d, self.d));
@@ -907,12 +989,14 @@ class GraphCanvas(Widget):
 								self.draw_edge(v, u, r);
 							
 							# Dibujar una arista roja si está activado el grafo original
-							elif self.original and G.get_edge(u.id, v.id) == 1:
+							elif self.original and (not G.get_edge(u.id, v.id) == 0):
 								Color(1, 0, 0, mode='rgb');
 								self.draw_edge(v, u, r);
 
 	# Dibujar una arista
 	def draw_edge(self, v1, v2, r):
+	
+		# Reunir coordenadas y dibujar la línea
 		x1 = v1.pos_x;
 		y1 = v1.pos_y;
 		x2 = v2.pos_x;
@@ -921,31 +1005,107 @@ class GraphCanvas(Widget):
 		
 	# Manejo de marcas
 	def set_mark(self, v):
-		if self.set_sub: return;	# no interferencia con la funcion de subgrafos
-		if v == -1:	# quitar 1ra y 2da marcas
+		
+		# No interferencia con la función de subgrafos
+		if self.set_sub: return;
+		
+		# Quitar primera y segunda marcas
+		if v == -1:
 			self.mark = v;
 			self.end = v;
-			self.log = '';
-		elif self.mark == -1:	# agregar 1ra marca si no hay ninguna
+			
+		# Agregar primera marca si no hay ninguna
+		elif self.mark == -1:
 			self.mark = v;
-			self.log = "v = " + str(v);	# info del vertice
-			self.log += '\n'+"tipo = " + str(self.V[v].type);
-		elif self.mark == v: 	# quitar marcas si se vuelve a escoger un vertice marcado
-			self.mark = -1;
-			self.end = -1;
-			self.log = '';
+			
+		# Quitar marcas si se vuelve a escoger un vértice marcado
+		elif self.mark == v:
+			self.set_mark(-1);
+		
 		else:
-			if v == self.end:	# invertir arista si se vuelve a escoger el segundo vertice marcado
-				self.G.opp_edge(self.mark, self.end);
-				#self.G.E.print_matrix();
-				self.log = "edge (" + str(self.mark) + ", " + str(self.end) + ") trasladado.";
-				self.mark = -1;
-				self.end = -1;
+		
+			# Solicitar invertir arista si se vuelve a escoger el segundo vértice marcado
+			if v == self.end:
+				self.invert = True;
 				return;
-			e = self.G.get_edge(self.mark, v);	# informar sobre la arista si se marca un segundo vertice
+			
+			# Marcar el segundo vértice
 			self.end = v;
-			if e == 0: self.log = "edge (" + str(self.mark) + ", " + str(v) + ") está en Com."+'\n'+"(Otro clic para trasladar)"; 
-			else: self.log = "edge (" + str(self.mark) + ", " + str(v) + ") está en G."+'\n'+"(Otro clic para trasladar)"; 
+	
+	# On/Off aristas del complemento
+	def on_com_active(self, value):
+		if value:
+			self.complement = True;
+		else:
+			self.complement = False;
+	
+	# On/Off aristas del grafo
+	def on_or_active(self, value):
+		if value:
+			self.original = True;
+		else:
+			self.original = False;
+	
+	# Intercambiar un par de etiquetas
+	def lbl_change(self, lbls, tst = False):
+	
+		# Comprobar si los vértices solicitados existen
+		if len(lbls) < 2: return;
+		n = lbls[0];	# Vértice 1
+		m = lbls[1];	# Vértice 2
+		if n >= self.G.vertices or m >= self.G.vertices: return;
+	
+		# Imprimir la lista
+		if tst: print(lbls);
+	
+		# Intercambiar las posiciones de los vértices recibidos
+		x1 = self.V[n].pos_x;
+		y1 = self.V[n].pos_y;
+		x2 = self.V[m].pos_x;
+		y2 = self.V[m].pos_y;
+		self.V[m].pos_set(x1, y1);
+		self.V[n].pos_set(x2, y2);
+	
+	# Encender y apagar función de subgrafos
+	def subgraph(self):
+		
+		# Quitar marcas
+		self.set_mark(-1);
+		
+		# Entrar o salir de la función
+		self.set_sub = not self.set_sub;
+		
+		# Reiniciar vértices del subgrafo en construcción si entramos en la función
+		if self.set_sub:
+			self.V_sub = [];
+			
+		# Desmarcar vértices del subgrafo en construcción si salimos de la función
+		else:
+			for v in self.V:
+				if v.sub: v.sub = False;
+			
+			# Vaciar salida
+			self.out = '';
+	
+	# Confirmar subgrafo construido
+	def subgraph_confirm(self, name, subpanel, tst = False):
+	
+		# Hacer que el grafo asociado almacene el subgrafo seleccionado
+		sub_aux = self.V_sub;
+		name_sub = self.G.add_sub(sub_aux, name); # Guardar el nombre con el que se guardó el subgrafo
+		
+		# Almacenar el nombre en el panel de subgrafos si corresponde a un nuevo subgrafo
+		if self.G.subgraphs > len(subpanel.Sub):
+			if tst: print("último nombre: "+str(name_sub));
+			subpanel.add_sub(name_sub);
+		
+		# Actualizar el panel de subgrafos
+		subpanel.reprint_subs(self);
+		
+		# Imprimir los subgrafos que hay almacenados en el grafo y los nombres en la lista
+		if tst:
+			print('nombres: '+str(subpanel.Sub));
+			self.G.print_subs();
 	
 	def auto_add_subs(self, subs, names, panel):	# agregar subgrafos automaticamente
 		for i in range(len(subs)):
@@ -960,72 +1120,302 @@ class GraphCanvas(Widget):
 			panel.update(self);
 		#print(self.G.Sub);
 	
-	def show_subgraph(self):	# mostrar en el campo de texto el subgrafo que se está construyendo
-		self.parent.children[1].children[1].text = "subgrafo: "+str(self.V_sub);	# imprimir en el campo de texto
-		#print(self.V_sub);
-	
-	def reset_subgraph(self):	# desmarcar vertices al terminar de construir subgrafo
-		self.log = "";
-		for v in self.V:
-			if v.sub: 
-				self.display_new_sub = True;	# no dar bandera verde al panel si no hubo ningun vertice seleccionado
-				v.sub = False;
-		self.set_sub = False;
-	
-	def subgraph_confirm(self, name):	# Confirmar subgrafo construido
-		sub_aux = self.V_sub;
-		self.G.add_sub(sub_aux, name);
-		self.reset_subgraph();
-	
-	def subgraph(self, value):	# on/off # seleccion de subgrafo
-		self.set_mark(-1);	# quitar marcas
-		if value:
-			self.V_sub = [];
-			self.log = "escoger los vertices del subgrafo";
-			self.set_sub = True;
-		else:
-			self.reset_subgraph();
-	
 	def lbl_change_sev(self, vec):	# cambiar todas las etiquetas
 		pos = [];
 		for v in self.V:
 			pos.append([v.pos_x, v.pos_y]);
 		for i in range(len(self.V)):
 			self.V[vec[i]].pos_set(pos[i][0], pos[i][1]);
-	
-	def lbl_change(self, txt):	# intercambiar un par de etiquetas
-		if self.set_sub: return;	# no interferencia con la funcion de subgrafos
-		l = list(txt.rsplit(' '));
-		if not l[0].isnumeric(): return;	# control provisional de la entrada
-		n = int(l[0]);
-		m = int(l[1]);
-		if n < 0 or m < 0: return;
-		#print("input: "+str(l));
-		x1 = self.V[n].pos_x;
-		y1 = self.V[n].pos_y;
-		x2 = self.V[m].pos_x;
-		y2 = self.V[m].pos_y;
-		self.V[m].pos_set(x1, y1);
-		self.V[n].pos_set(x2, y2);
-	
-	def on_com_active(self, value):	# on/off aristas complemento
-		if value:
-			self.complement = True;
-		else:
-			self.complement = False;
-	
-	def on_or_active(self, value): # on/off aristas grafo
-		if value:
-			self.original = True;
-		else:
-			self.original = False;
 
-class SubPanel(GridLayout):	# panel de subgrafos
+# Barra de herramientas
+class Toolbar(GridLayout):
+
+	txt_out = TextInput(multiline=True, size_hint_x=None, width=100, background_color=(.3,.3,.3), hint_text='Salida', readonly=True); # Salida de funciones
+
+	# Imprimir salida
+	def out(self, out):
+		
+		# Imprimirla en el widget hijo
+		self.txt_out.text = out;
+
+	# Solicitar al dibujante crear un subgrafo
+	def subgraph_definition(self, GC, subpanel, value, btn_sub, check_sub, btn_ran, confirm, tst = False):
 	
-	Sub = [];	# lista de nombres de los subgrafos almacenados
-	up_btn = Button(font_size='10', text='/|', size_hint_y=None, height=30, size_hint_x=None, width=30);	# boton up
-	dwn_btn = Button(font_size='10', text='|/', size_hint_y=None, height=30, size_hint_x=None, width=30);	# boton dwn
-	first_sub_to_show = 0;	# primer subgrafo a ser mostrado en el panel (de arriba hacia abajo)
+		# Imprimir un separador para monitorizar las acciones del botón y el checkbox
+		if tst: print("------.");
+		
+		if not confirm:
+		
+			# Solicitar al dibujante crear el subgrafo
+			if check_sub.active:
+				if tst:
+					print("he sido llamado por el checkbox, que está activo.");
+					print("abrir la puerta.");
+				GC.subgraph();
+			
+			# Solicitar al dibujante volver al estado normal
+			else:
+				if tst: 
+					print("he sido llamado por el checkbox, que está inactivo.");
+					print("cerrar la puerta.");
+				GC.subgraph();
+		else:
+		
+			# Solicitar al dibujante confirmar el subgrafo creado
+			if not btn_sub.disabled:
+				if tst: 
+					print("he sido llamado por el botón, que está activo.");
+					print("Es un invitado, dejarlo pasar.");
+				GC.subgraph_confirm(None, subpanel, tst);
+			else:
+				if tst: 
+					print("he sido llamado por el botón, que está inactivo.");
+					print("Es un invitado, insultarlo.");
+		
+		# Manipular la barra según se entre/salga de la función de subgrafos
+		self.subgraph_buttons(GC, value, btn_sub, check_sub, btn_ran, tst);
+
+	# Mostrar/Ocultar herramientas
+	def subgraph_buttons(self, GC, value, btn_sub, check_sub, btn_ran, tst = False):
+		
+		# Activar/Desactivar botones de otras funciones
+		btn_ran.disabled = value;
+		
+		# Activar/Desactivar checkbox
+		check_sub.active = value;
+		
+		# Comprobación de por qué no se gatillan solicitudes indeseadas al dibujante
+		if btn_sub.disabled: 
+			if tst: print("El botón está deshabilitado.");
+		else: 
+			if tst: print("El botón está habilitado.");
+		if value: 
+			if tst: print("Lo habilitaré.");
+		else: 
+			if tst: print("Lo deshabilitaré.");
+		
+		# Activar/Desactivar botón de confirmación
+		btn_sub.disabled = not value;
+
+	# Vaciar el campo de texto
+	def void_text(self, txt):
+		txt.text = '';
+
+	# Cambio de etiquetas
+	def lbl_change(self, GC, txt_field):
+		
+		l_n = []; # lista para almacenar la entrada numérica
+		
+		# Recibir entrada y vaciar el campo de texto
+		input = txt_field.text;
+		self.void_text(txt_field);
+		
+		# Convertir entrada en una lista
+		l = list(input.rsplit(','));
+		
+		# Descartar la entrada si hay un número negativo
+		for n in l:
+			if not n.isnumeric() or int(n) < 0: return;
+			else: l_n.append(int(n));
+		
+		# Cambiar etiquetas de los 2 primeros números introducidos
+		GC.lbl_change(l_n[0:2]);
+		
+	# Generar nuevo grafo random para el dibujante de grafos
+	def new_random(self, GC, subpanel, tst = False):
+	
+		# Crear un nuevo grafo del mismo número de vértices y hacer aleatorias sus aristas
+		G = Graph();
+		G.insert_Vertexes(len(GC.V));
+		G.rand_edges(.2);
+		
+		# Pasárselo al dibujante
+		GC.set_graph(G, subpanel, tst);
+
+	# Vincular la barra a un dibujante
+	def setup(self, GC, subpanel, tst = False):
+		
+		# Limpiar lienzo
+		self.clear_widgets(self.children);
+		
+		# Disposición
+		self.orientation = "rl-tb";
+		self.size_hint_x = None;
+		self.width = 100;
+		self.rows = 15;
+		self.cols = 1;
+		
+		# Botón para generar nuevo grafo random
+		btn_ran = Button(font_size='10',text='Random', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		btn_ran.bind(on_press=lambda x:self.new_random(GC, subpanel, tst));
+		self.add_widget(btn_ran);
+		
+		# Checkbox: aristas del grafo original
+		lbl_or = Label(font_size='10', text='Grafo', size_hint_y=None, height=25, size_hint_x=None, width=100);
+		checkbox_o = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=True, color=(255,0,0));
+		checkbox_o.bind(active=lambda x,y:GC.on_or_active(checkbox_o.active));
+		self.add_widget(lbl_or);
+		self.add_widget(checkbox_o);
+		
+		# Checkbox: aristas del grafo complemento
+		lbl_com = Label(font_size='10', text='Complemento', size_hint_y=None, height=25, size_hint_x=None, width=100);
+		checkbox_c = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=False, color=(0,0,255));
+		checkbox_c.bind(active=lambda x,y:GC.on_com_active(checkbox_c.active));
+		self.add_widget(lbl_com);
+		self.add_widget(checkbox_c);
+		
+		# Botón de reinicio de posiciones
+		btn_res = Button(font_size='10',text='Reiniciar pos.', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		btn_res.bind(on_press=lambda x:GC.recalc_vertexes_pos());
+		self.add_widget(btn_res);
+		
+		# Campo de texto (entrada)
+		txt_in = TextInput(multiline=False, size_hint_x=None, width=100, size_hint_y=None, height=30, hint_text='X Etiquetas', text_validate_unfocus=False);
+		txt_in.bind(on_double_tap=lambda x:self.void_text(txt_in));
+		txt_in.bind(on_text_validate=lambda x:self.lbl_change(GC, txt_in));
+		self.add_widget(txt_in);
+		
+		# Kit de creación de subgrafos
+		lbl_sub = Label(font_size='10', text='Definir subgrafo', size_hint_y=None, height=25, size_hint_x=None, width=100);
+		btn_sub = Button(font_size='10', text='Confirm. subgrafo', size_hint_y=None, height=30, size_hint_x=None, width=100, disabled=True);
+		checkbox_sub = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=False, color=(0,1,1));
+		btn_sub.bind(on_press=lambda x:self.subgraph_definition(GC, subpanel, False, btn_sub, checkbox_sub, btn_ran, True));
+		checkbox_sub.bind(active=lambda x,y:self.subgraph_definition(GC, subpanel, checkbox_sub.active, btn_sub, checkbox_sub, btn_ran, False));
+		self.add_widget(lbl_sub);
+		self.add_widget(checkbox_sub);
+		self.add_widget(btn_sub);
+		
+		# Campo de texto (salida)
+		self.txt_out.bind(on_double_tap=lambda x:self.void_text(self.txt_out));
+		self.add_widget(self.txt_out);
+		
+		'''
+		
+		cliq_btn = Button(font_size='10', text='Cliques', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		cliq_btn.bind(on_press=lambda x:p.calc_cliques(canvas, subpanel));
+		
+		path_btn = Button(font_size='10', text='Camino simple', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		path_btn.bind(on_press=lambda x:p.simple_path(canvas, txt_input, 0, subpanel));
+		
+		toolbar.add_widget(path_btn);
+		toolbar.add_widget(cliq_btn);
+		'''
+
+# Panel de subgrafos
+class SubPanel(GridLayout):
+	
+	Sub = []; # Lista de nombres de los subgrafos almacenados
+	up_btn = Button(font_size='10', text='/|', size_hint_y=None, height=30, size_hint_x=None, width=30); # Botón up
+	dwn_btn = Button(font_size='10', text='|/', size_hint_y=None, height=30, size_hint_x=None, width=30); # Botón down
+	first_sub_to_show = 0;	# Primer subgrafo visible
+
+	# Valores iniciales
+	def setup(self, GC, tst = False):
+		
+		# Permitir, a lo sumo, 18 subgrafos en el panel más 2 botones: arriba y abajo.
+		self.cols = 1;
+		self.rows = 20;
+		self.orientation = "rl-tb";
+		self.size_hint_x = None;
+		self.width = 100;
+		
+		# Vaciar lista de nombres
+		self.Sub = [];
+		
+		# Ir al inicio del panel
+		self.first_sub_to_show = 0;
+		
+		# Agregar funcionalidad de los botones arriba y abajo.
+		self.up_btn.bind(on_press=lambda x:self.go_up(GC, tst));
+		self.dwn_btn.bind(on_press=lambda x:self.go_down(GC, tst));
+		
+		# Agregar el subgrafo por defecto
+		self.add_sub('self');
+		
+		# Pintar botones
+		self.reprint_subs(GC);
+		
+	# Función del boton arriba
+	def go_up(self, GC, tst = False):
+	
+		# Notificar llamada a la función
+	
+		# Retroceder en la lista si aún no se ha llegado al inicio
+		if self.first_sub_to_show == 0: return;
+		self.first_sub_to_show -= 1;
+		
+		# Notificar resta
+		if tst: print(self.first_sub_to_show);
+		
+		# Actualizar panel
+		self.reprint_subs(GC);
+
+	# Función del boton abajo
+	def go_down(self, GC, tst = False):
+		
+		# No hace nada si aún no hay suficientes botones almacenados
+		if len(self.Sub) <= 18: return;
+		
+		# Avanzar en la lista si aún no se ha llegado al final
+		if self.first_sub_to_show == len(self.Sub) - 18: return;
+		self.first_sub_to_show += 1;
+		
+		# Notificar suma
+		if tst: print(self.first_sub_to_show);
+		
+		# Actualizar panel
+		self.reprint_subs(GC);
+
+	# Agregar subgrafo
+	def add_sub(self, name):
+	
+		# Agregar el nombre del nuevo subgrafo a la lista
+		self.Sub.append(name);
+
+	# Imprimir los botones que alcancen en el panel
+	def reprint_subs(self, GC):
+	
+		add_num = len(self.Sub) # Número de botones por agregar
+		
+		# limpiar botones, menos el botón arriba
+		self.clear_widgets(self.children);
+		self.add_widget(self.up_btn);
+		
+		# Si los subgrafos no caben en el panel, mostrar solo 18
+		if add_num > 18: add_num = 18;
+		
+		# Agregar botones recursivamente
+		self.add_button(0, add_num, GC);
+		
+		# Pintar, de último, el botón abajo
+		self.add_widget(self.dwn_btn);
+
+	# Agregar botones (recursivo). Por alguna razón, con un for no funciona.
+	def add_button(self, i, b, GC):
+	
+		# Terminar si el índice llega hasta b (b botones)
+		if i == b: return;
+		
+		idx = self.first_sub_to_show;
+		
+		sub_name = self.Sub[idx+i]; # Nombre del subgrafo
+		
+		# Crear botón, agregarle la funcionalidad y mostrarlo
+		aux_btn = Button(font_size='10', text=sub_name, size_hint_y=None, height=30, size_hint_x=None, width=100);
+		aux_btn.bind(on_press=lambda x:self.display_subgraph(GC, sub_name));
+		self.add_widget(aux_btn);
+		
+		# Pasar al siguiente botón
+		self.add_button(i+1, b, GC);
+
+	# Pintar el subgrafo seleccionado en el lienzo
+	def display_subgraph(self, GC, name):
+	
+		arr_sub = GC.G.get_sub(name); # Vértices del subgrafo seleccionado
+		
+		# Imponer el subgrafo al dibujante
+		GC.view_V = arr_sub;
+		GC.view_name = name;
 
 	def sort_subs(self, GC, max_min):	# ordenar subgrafos segun tamaño del subconjunto
 		sorted = [];
@@ -1051,201 +1441,20 @@ class SubPanel(GridLayout):	# panel de subgrafos
 		self.first_sub_to_show = 0;	# ir al inicio de la lista de botones
 		self.reprint_subs(GC);	# actuaizar panel con botones organizados
 
-	def add_funct_on_panel(self, i, b, GC): # agregar botones (recursivo). Por alguna razón, con un for no funciona.
-		if i > b-1: return;	# el indice llega hasta b-1 para b botones
-		sub_name = self.Sub[self.first_sub_to_show + i];
-		aux_btn = Button(font_size='10', text=sub_name, size_hint_y=None, height=30, size_hint_x=None, width=100);
-		#print("btn = "+str(sub_name));
-		aux_btn.bind(on_press=lambda x:self.display_subgraph(GC, sub_name));
-		self.add_widget(aux_btn);
-		self.add_funct_on_panel(i+1, b, GC);
-
-	def go_up(self):	# funcion del boton arriba
-		if self.first_sub_to_show == 0: return;	# inicio de la lista
-		self.first_sub_to_show -= 1;	# retroceder en la lista
-
-	def go_down(self):	# funcion del boton abajo
-		if len(self.Sub) <= 18: return; # no hace nada si aún no hay suficientes botones que mostrar
-		if self.first_sub_to_show == len(self.Sub) - 18: return;	# fin de la lista
-		self.first_sub_to_show += 1;	# avanzar en la lista
-	
-	def restart(self):	# reiniciar el panel 
-		self.Sub = [];	# vaciar lista de nombres
-		self.clear_widgets(self.children);	# limpiar botones
-		self.add_widget(self.up_btn);	# agregar de nuevo los botones arriba/abajo
-		self.add_widget(self.dwn_btn);
-
-	def display_subgraph(self, GC, name):	# pintar en el canvas el subgrafo seleccionado
-		arr = GC.G.get_sub(name)[1];
-		name_sub = GC.G.get_sub(name)[0];
-		print(GC.G.get_subgraph(name_sub));
-		#print("array to display: "+str(arr)+" from sub named: "+str(name_sub));
-		GC.view_V = arr;
-
-	def reprint_subs(self, GC):	# imprimir los botones que alcancen en el panel
-		n = len(self.children) - 1;
-		for i in range(n):
-			#print(self.children[0].text);
-			self.remove_widget(self.children[0]);	# limpiar canvas, menos el boton arriba
-		#print("-----------------");
-		#print(str(len(self.children))+" is "+str(self.children[0].text));
-		add_num = n-1;
-		if add_num > 18: add_num = 18;
-		#print("hay que agregar "+str(n-1)+" subgrafos al panel y el botón de abajo.");
-		self.add_funct_on_panel(0, add_num, GC);	# agregar botones recursivamente
-		self.add_widget(self.dwn_btn); # pintar el boton abajo de ultimo
-
-	def update(self, GC):	# actualizar el panel
-		#print("botones en total: "+str(len(self.children)));
-		if GC.display_new_sub and (not len(GC.G.Sub) == len(self.Sub)):	# esperar la bandera, comprobar lista de G
-			name = GC.G.Sub[len(self.Sub)][0];	# copiar el nuevo nombre a la lista propia
-			self.Sub.append(name);
-			#print("hay que imprimir: "+name);
-			if len(self.Sub) <= 18:
-				self.remove_widget(self.dwn_btn);	# cambiar de lugar el boton down
-				aux_btn = Button(font_size='10', text=name, size_hint_y=None, height=30, size_hint_x=None, width=100);
-				#print("btn = "+str(name));
-				aux_btn.bind(on_press=lambda x:self.display_subgraph(GC, name));	# agregar funcionalidad al boton
-				self.add_widget(aux_btn);
-				self.add_widget(self.dwn_btn);
-				#print(str(self.Sub)+" vs "+str(GC.G.Sub));
-			GC.display_new_sub = False;	# dejar bandera en falso al terminar
-		if len(self.Sub) > 18:
-			#print(str(self.Sub[self.first_sub_to_show])+" = "+str(self.children[18].text));
-			if not self.Sub[self.first_sub_to_show] == self.children[18].text:	
-				self.reprint_subs(GC); # re-imprimir botones si se ha deslizado la lista
-	
-	def init(self):	# rutina de inicio
-		self.cols = 1;
-		self.rows = 20;
-		self.orientation = "rl-tb";
-		self.size_hint_x = None;
-		self.width = 100;
-		self.up_btn.bind(on_press=lambda x:self.go_up());
-		self.dwn_btn.bind(on_press=lambda x:self.go_down());
-		self.add_widget(self.up_btn);
-		self.add_widget(self.dwn_btn);
-
 # Aplicacion gráfica
 class GraphApp(App):
-	
-	G = Graph(); # Grafo principal
-	n = 0; # Número inicial de vértices
-	d = 0; # Diámetro de los vértices visuales
-	
-	# Preparar un grafo inicial
-	def prepare_graph(self, n = 1, d = 20, p = .2):
-		
-		# Establecer el diámetro de los vértices
-		self.d = d;
-		
-		# Establecer el número de vértices
-		self.n = n
-		
-		# Agregar n vértices y hacer aleatorias las aristas
-		for i in range(self.n):
-			self.G.insertVertex();
-		self.G.rand_edges(p);
-		
-		return self.G;
-	
-	def void_text(self, input):
-		input.text = '';
-	
-	def count_subs(self, lbl, panel):	# contador de subgrafos almacenados
-		lbl.text = "subg's: "+str(len(panel.Sub))
-	
-	def subgraph(self, value, sub_btn, path_btn, ran_btn, lbl_btn, canvas):	# mostrar/ocultar botones y lanzar funcion
-		sub_btn.disabled = not value;
-		path_btn.disabled = value;
-		ran_btn.disabled = value;
-		lbl_btn.disabled = value;
-		canvas.subgraph(value);
-	
-	def subgraph_confirm(self, checkbox, sub_btn, path_btn, ran_btn, lbl_btn, canvas):	# confirmar subgrafo construido
-		checkbox.active = False;
-		sub_btn.disabled = True;
-		path_btn.disabled = False;
-		ran_btn.disabled = False;
-		lbl_btn.disabled = False;
-		canvas.subgraph_confirm(None);
 	
 	# Montaje de la app
 	def build(self):
 		
 		'''
-		# panel de subgrafos
-		subpanel = SubPanel();
-		subpanel.init();
 		
 		# Calculadora
 		p = Path_Calc();
-		
-		# barra de herramientas
-		lbl_or = Label(font_size='10', text='grafo', size_hint_y=None, height=25, size_hint_x=None, width=100);
-		
-		checkbox = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=True, color=(255,0,0))
-		checkbox.bind(active=lambda x,y:canvas.on_or_active(checkbox.active));
-		
-		lbl_com = Label(font_size='10', text='complemento', size_hint_y=None, height=25, size_hint_x=None, width=100);
-		
-		checkbox_c = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=True, color=(0,0,255))
-		checkbox_c.bind(active=lambda x,y:canvas.on_com_active(checkbox_c.active));
-		checkbox_c.active = False;
-		
-		txt_input = TextInput(multiline=True, size_hint_x=None, width=100);
-		
-		res_btn = Button(font_size='10',text='Reiniciar pos', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		res_btn.bind(on_press=lambda x:canvas.recalc_vertexes_pos());
-		
-		cliq_btn = Button(font_size='10', text='Cliques', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		cliq_btn.bind(on_press=lambda x:p.calc_cliques(canvas, subpanel));
-		
-		path_btn = Button(font_size='10', text='Camino simple', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		path_btn.bind(on_press=lambda x:p.simple_path(canvas, txt_input, 0, subpanel));
-		
-		ran_btn = Button(font_size='10',text='Random', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		ran_btn.bind(on_press=lambda x:canvas.set_graph(self.rand_graph(subpanel)));
-		
-		sub_btn = Button(font_size='10', text='Confirm. subgrafo', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		sub_btn.bind(on_press=lambda x:self.subgraph_confirm(checkbox_sub, sub_btn, path_btn, ran_btn, lbl_btn, canvas));
-		
-		lbl_btn = Button(font_size='10', text='Cambio etiquetas', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		lbl_btn.bind(on_press=lambda x:canvas.lbl_change(txt_input.text));
-		
-		void_btn = Button(font_size='10', text='Vaciar', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		void_btn.bind(on_press=lambda x:self.void_text(txt_input));
-		
-		lbl_sub = Label(font_size='10', text='subgrafo', size_hint_y=None, height=25, size_hint_x=None, width=100);
-		
-		checkbox_sub = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=True, color=(0,100,50))
-		checkbox_sub.bind(active=lambda x,y:self.subgraph(checkbox_sub.active, sub_btn, path_btn, ran_btn, lbl_btn, canvas));
-		checkbox_sub.active = False;
-		
-		lbl_sub_n = Label(font_size='10', text="subg's: "+str(len(subpanel.Sub)), size_hint_y=None, height=25, size_hint_x=None, width=100);
-		
-		toolbar = GridLayout(orientation="rl-tb", size_hint_x=None, width=100);
-		toolbar.rows = 15;
-		toolbar.cols = 1;
-		toolbar.add_widget(ran_btn);
-		toolbar.add_widget(res_btn);
-		toolbar.add_widget(path_btn);
-		toolbar.add_widget(cliq_btn);
-		toolbar.add_widget(lbl_or);
-		toolbar.add_widget(checkbox);
-		toolbar.add_widget(lbl_com);
-		toolbar.add_widget(checkbox_c);
-		toolbar.add_widget(sub_btn);
-		toolbar.add_widget(lbl_sub);
-		toolbar.add_widget(checkbox_sub);
-		toolbar.add_widget(lbl_btn);
-		toolbar.add_widget(void_btn);
-		toolbar.add_widget(txt_input);
-		toolbar.add_widget(lbl_sub_n);
-		
 		'''
 		# Preparar grafo inicial
-		self.prepare_graph(10, 30, .1);
+		G = Graph();
+		G.insert_Vertexes(10);
 		
 		# Widget raíz
 		root = GridLayout();
@@ -1254,15 +1463,24 @@ class GraphApp(App):
 		# Lienzo del grafo
 		graph_canvas = GraphCanvas();
 		
+		# Panel de subgrafos
+		subpanel = SubPanel();
+		subpanel.setup(graph_canvas, True);
+		
+		# Barra de herramientas
+		toolbar = Toolbar();
+		toolbar.setup(graph_canvas, subpanel);
+		
 		# Contenido de las 3 columnas (lienzo, barra y panel)
 		root.add_widget(graph_canvas);
+		root.add_widget(toolbar);
+		root.add_widget(subpanel);
 		
 		# Actualizar el contenido del lienzo con el grafo de la aplicación
-		Clock.schedule_interval(lambda x:graph_canvas.update(self.G, self.d, True), 1.0 / 60.0);
+		Clock.schedule_interval(lambda x:graph_canvas.update(toolbar, subpanel, True, G), 1.0 / 60.0);
 		
 		'''
 		Clock.schedule_interval(lambda x:subpanel.update(canvas), 1.0 / 60.0);
-		Clock.schedule_interval(lambda x:self.count_subs(lbl_sub_n, subpanel), 1.0 / 60.0);
 		'''
 		
 		return root;
