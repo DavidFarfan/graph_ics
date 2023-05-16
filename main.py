@@ -300,6 +300,22 @@ class Graph:
 						if G.get_edge(j, i) == 0: self.edge(j, i);
 						else: self.edge(j, i, 0);
 					else: self.edge(j, i, G.get_edge(j,i));
+	
+	# Señalar un camino
+	def mark_path(self, path):
+		
+		# No hacer nada si el camino no tiene, al menos, inicio y final distintos
+		if len(path) < 2: return;
+		
+		# Limpiar otra señalización
+		for v in range(self.vertices):
+			for u in range(self.vertices):
+				if v > u:
+					if self.get_edge(v, u) > 1: self.edge(v, u, 1);
+		
+		# Señalizar nuevo camino
+		for i in range(len(path)-1):
+			if self.get_edge(path[i], path[i+1]) > 0: self.edge(path[i], path[i+1], 2);
 
 # Calculadora para grafos
 class GraphCalc:
@@ -311,6 +327,16 @@ class GraphCalc:
 	france = []; # Vértices F del alg. Camino simple
 	peninsular = []; # Vértices F/P del alg. Camino simple
 	uk = [];	# Vértices F/P/E del alg. Camino simple
+	
+	# Obtener un resultado con etiquetas cambiadas
+	def res_sub(self, res, view_V):
+		
+		arr = []; # Resultado con etiquetas cambiadas
+		
+		# Cambiar etiquetas, una a una
+		for i in res:
+			arr.append(view_V[i]);
+		return arr;
 	
 	# Imprimir ultimos cliques encontrados
 	def get_cliques(self):
@@ -337,7 +363,7 @@ class GraphCalc:
 		for v in A:
 			if o.contains(B, v): I.append(v);
 		return I;
-
+	
 	# Conjunto de vecinos de un vertice
 	def neighbor_set(self, v, G):
 	
@@ -345,7 +371,7 @@ class GraphCalc:
 		
 		# Recorrer cada vertice u y verificar si es vecino de v
 		for u in range(G.vertices):
-			if (not u == v) and (G.get_edge(u, v) == 1):
+			if (not u == v) and (G.get_edge(u, v) > 0):
 				N.append(u);
 		return N;
 	
@@ -503,7 +529,7 @@ class GraphCalc:
 		# Imprimir orden final
 		if tst: print("Orden de degeneración: L = "+str(L));
 	
-	# Iteracion del alg. Camino simple
+	# Iteracion del alg. Camino simple/doble
 	def simple_path_next(self, G, R, Vn, tst = False):
 	
 		NR = self.intersection_set(Vn, self.neighbor_set(R, G)); # Vecinos no visitados de R
@@ -525,11 +551,82 @@ class GraphCalc:
 			if tst: print("El siguiente de R = " + str(R) + " es: "+str(v));
 			return v;
 
-	# Encontrar un camino que pase por un vértice fijo, s
+	# Encontrar un camino que inicie en un vértice fijo, s.
 	def simple_path(self, G, s, tst = False):
 		
 		'''
-		Encontrar un camino simple desde s, implementa un deck para extender el camino hacia dos lados desde el vértice inicial
+		Encontrar un camino desde s
+		'''
+		
+		P = deque(); # Camino
+		V = G.V.copy();	# Vertices no visitados
+		self.R1 = s;	# Ruso 1
+		self.R2 = s;	# Ruso 2
+		
+		# Señalar el comienzo
+		if tst: print("---------> Simple Path:");
+		
+		# Limpiar vértices al comenzar
+		self.ue = [];
+		self.france = [];
+		self.peninsular = [];
+		self.uk = [];
+		
+		# Comenzar el camino en s
+		V.remove(s);
+		P.append(s);
+		
+		# Extender el camino hacia la dirección de R1
+		vf = self.simple_path_next(G, self.R1, V, tst);
+		while(not vf == self.R1):
+			self.R1 = vf;
+			P.append(self.R1);
+			vf = self.simple_path_next(G, self.R1, V, tst);
+		
+		# Determinar R1 definitivo
+		self.R1 = vf;
+		if o.contains(self.ue, self.R1): self.ue.remove(self.R1);
+		
+		# Determinar R2 definitivo
+		if o.contains(self.ue, self.R2): self.ue.remove(self.R2);
+		
+		# Imprimir camino calculado
+		if tst: print("Camino calculado: "+str(P));
+		
+		# Determinar los tipos para los vértices no visitados
+		for v in V:
+			count = 0;	# Contador de vecinos UE
+			
+			# Contar los vecinos UE de v
+			for u in self.ue:
+				if G.get_edge(v, u) == 1:
+					count += 1;
+					
+			# Decidir sobre v
+			if count > 1: 
+				if tst: print(str(v)+" es francés.");
+				self.france.append(v);
+			elif count == 1:
+				if tst: print(str(v)+" es peninsular o francés.");
+				self.peninsular.append(v);
+			else:
+				if tst: print(str(v)+" Puede ser cualquier tipo.");
+				self.uk.append(v);
+		
+		# imprimir tipos de vértices
+		if tst:
+			print("R1: "+str(self.R1));
+			print("R2: "+str(self.R2));
+			print("U: "+str(self.ue));
+			print("F: "+str(self.france));
+			print("F/P: "+str(self.peninsular));
+			print("F/P/E: "+str(self.uk));
+
+	# Encontrar un camino que pase por un vértice fijo, s
+	def double_path(self, G, s, tst = False):
+		
+		'''
+		Encontrar un camino doble que pase por s, implementa un deck para extender el camino hacia dos lados desde el vértice inicial
 		'''
 		
 		P = deque(); # Camino
@@ -598,7 +695,7 @@ class GraphCalc:
 				if tst: print(str(v)+" Puede ser cualquier tipo.");
 				self.uk.append(v);
 		
-		# imprimir tipos de vértice
+		# Imprimir tipos de vértice.
 		if tst:
 			print("R1: "+str(self.R1));
 			print("R2: "+str(self.R2));
@@ -770,6 +867,7 @@ class VertexCanvas(Widget):
 class GraphCanvas(Widget):
 	
 	G = Graph(); # Grafo asociado
+	C = GraphCalc(); # Calculadora
 	d = NumericProperty(0);	# Diámetro de los vértices
 	V = ObjectProperty(None);	# Vértices visuales
 	view_V = ObjectProperty([]); # Vértices del subgrafo a mostrar
@@ -868,6 +966,9 @@ class GraphCanvas(Widget):
 	
 	# Establecer el grafo a representar
 	def set_graph(self, G, subpanel, tst = False):
+	
+		# Vaciar salida
+		self.out = '';
 	
 		# Cambiar el grafo asociado
 		self.G = G;
@@ -1000,8 +1101,13 @@ class GraphCanvas(Widget):
 								self.draw_edge(v, u, r);
 							
 							# Dibujar una arista roja si está activado el grafo original
-							elif self.original and (not G.get_edge(u.id, v.id) == 0):
+							elif self.original and G.get_edge(u.id, v.id) == 1:
 								Color(1, 0, 0, mode='rgb');
+								self.draw_edge(v, u, r);
+							
+							# Dibujar una arista amarilla si es parte de un camino
+							elif self.original and G.get_edge(u.id, v.id) == 2:
+								Color(1, 1, 0, mode='rgb');
 								self.draw_edge(v, u, r);
 
 	# Dibujar una arista
@@ -1130,6 +1236,66 @@ class GraphCanvas(Widget):
 		self.V[m].pos_set(x1, y1);
 		self.V[n].pos_set(x2, y2);
 	
+	# Cambiar todas las etiquetas
+	def lbl_change_sev(self, vec):
+	
+		pos = [];	# Arreglo de posiciones actuales
+		
+		# Hacer el cambio respecto a las posiciones por defecto
+		self.recalc_vertexes_pos();
+		
+		# Llenar el arreglo con la info. actual
+		for v in self.V:
+			pos.append([v.pos_x, v.pos_y]);
+			
+		# Permutar las posiciones
+		for i in range(len(self.V)):
+			self.V[vec[i]].pos_set(pos[i][0], pos[i][1]);
+	
+	# Algoritmo camino simple sobre la vista actual, que pase por el primer vértice
+	def simple_path(self):
+		
+		Sub_G = self.G.get_subgraph(self.view_name); # Subgrafo seleccionado
+		
+		# Calcular un camino simple, que pase por el primer vértice.
+		self.C.simple_path(Sub_G, 0);
+		
+		# Obtener resultados de la calculadora
+		r1 = self.view_V[self.C.R1]; # Ruso 1
+		r2 = self.view_V[self.C.R2]; # Ruso 2
+		ue = self.C.res_sub(self.C.ue, self.view_V); # Vértices UE
+		france = self.C.res_sub(self.C.france, self.view_V); # Vértices F
+		peninsular = self.C.res_sub(self.C.peninsular, self.view_V); # F/P
+		uk = self.C.res_sub(self.C.uk, self.view_V); # F/P/I
+		included = [r2]+ue+[r1]+france+peninsular+uk; # Vista actual
+		excluded = []; # Vértices que no pertenecen a la vista actual
+		
+		# Reunir los vértices que no pertenecen a la vista actual
+		for v in self.V:
+			if not o.contains(included, v.id): excluded.append(v.id);
+		
+		# Eliminar vértice ruso duplicado, si lo hay.
+		if r1 == r2: 
+			included.remove(r1);
+		
+		# Señalizar el camino
+		self.G.mark_path([r2]+ue+[r1]);
+		
+		# Cambiar etiquetas del grafo según el camino encontrado
+		self.lbl_change_sev(included+excluded);
+		
+		# Vaciar salida
+		self.out = '';
+		
+		# Reportar resultados
+		self.out += "Camino simple";
+		self.out += "\n R1 = "+ str(r1);
+		self.out += "\n R2 = "+ str(r2);
+		self.out += "\n EU = "+ str(ue);
+		self.out += "\n F = "+ str(france);
+		self.out += "\n P/F = "+ str(peninsular);
+		self.out += "\n I/P/F = "+ str(uk);
+	
 	def auto_add_subs(self, subs, names, panel):	# agregar subgrafos automaticamente
 		for i in range(len(subs)):
 			self.subgraph(True);
@@ -1142,13 +1308,6 @@ class GraphCanvas(Widget):
 			self.subgraph_confirm(names[i]);
 			panel.update(self);
 		#print(self.G.Sub);
-	
-	def lbl_change_sev(self, vec):	# cambiar todas las etiquetas
-		pos = [];
-		for v in self.V:
-			pos.append([v.pos_x, v.pos_y]);
-		for i in range(len(self.V)):
-			self.V[vec[i]].pos_set(pos[i][0], pos[i][1]);
 
 # Barra de herramientas
 class Toolbar(GridLayout):
@@ -1166,7 +1325,7 @@ class Toolbar(GridLayout):
 		txt.text = '';
 
 	# Solicitar al dibujante crear un subgrafo
-	def subgraph_definition(self, GC, subpanel, value, btn_sub, check_sub, btn_ran, txt_in, confirm, tst = False):
+	def subgraph_definition(self, GC, subpanel, value, btn_sub, check_sub, btn_ran, btn_path, txt_in, confirm, tst = False):
 	
 		# Imprimir un separador para monitorizar las acciones del botón y el checkbox
 		if tst: print("------.");
@@ -1200,13 +1359,14 @@ class Toolbar(GridLayout):
 					print("Es un invitado, insultarlo.");
 		
 		# Manipular la barra según se entre/salga de la función de subgrafos
-		self.subgraph_buttons(GC, value, btn_sub, check_sub, btn_ran, txt_in, tst);
+		self.subgraph_buttons(GC, value, btn_sub, check_sub, btn_ran, btn_path, txt_in, tst);
 
 	# Mostrar/Ocultar herramientas
-	def subgraph_buttons(self, GC, value, btn_sub, check_sub, btn_ran, txt_in, tst = False):
+	def subgraph_buttons(self, GC, value, btn_sub, check_sub, btn_ran, btn_path, txt_in, tst = False):
 		
 		# Activar/Desactivar botones de otras funciones
 		btn_ran.disabled = value;
+		btn_path.disabled = value;
 		
 		# Cambiar proósito de la entrada de texto
 		if value: txt_in.hint_text = 'Sel. subgrafo';
@@ -1298,6 +1458,11 @@ class Toolbar(GridLayout):
 		self.add_widget(lbl_com);
 		self.add_widget(checkbox_c);
 		
+		# Botón Camino simple
+		btn_path = Button(font_size='10', text='Camino simple', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		btn_path.bind(on_press=lambda x:GC.simple_path());
+		self.add_widget(btn_path);
+		
 		# Botón de reinicio de posiciones
 		btn_res = Button(font_size='10',text='Reiniciar pos.', size_hint_y=None, height=30, size_hint_x=None, width=100);
 		btn_res.bind(on_press=lambda x:GC.recalc_vertexes_pos());
@@ -1307,8 +1472,8 @@ class Toolbar(GridLayout):
 		lbl_sub = Label(font_size='10', text='Definir subgrafo', size_hint_y=None, height=25, size_hint_x=None, width=100);
 		btn_sub = Button(font_size='10', text='Confirm. subgrafo', size_hint_y=None, height=30, size_hint_x=None, width=100, disabled=True);
 		checkbox_sub = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=False, color=(0,1,1));
-		btn_sub.bind(on_press=lambda x:self.subgraph_definition(GC, subpanel, False, btn_sub, checkbox_sub, btn_ran, txt_in, True));
-		checkbox_sub.bind(active=lambda x,y:self.subgraph_definition(GC, subpanel, checkbox_sub.active, btn_sub, checkbox_sub, btn_ran, txt_in, False));
+		btn_sub.bind(on_press=lambda x:self.subgraph_definition(GC, subpanel, False, btn_sub, checkbox_sub, btn_ran, btn_path, txt_in, True));
+		checkbox_sub.bind(active=lambda x,y:self.subgraph_definition(GC, subpanel, checkbox_sub.active, btn_sub, checkbox_sub, btn_ran, btn_path, txt_in, False));
 		self.add_widget(lbl_sub);
 		self.add_widget(checkbox_sub);
 		
@@ -1327,11 +1492,6 @@ class Toolbar(GridLayout):
 		
 		cliq_btn = Button(font_size='10', text='Cliques', size_hint_y=None, height=30, size_hint_x=None, width=100);
 		cliq_btn.bind(on_press=lambda x:p.calc_cliques(canvas, subpanel));
-		
-		path_btn = Button(font_size='10', text='Camino simple', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		path_btn.bind(on_press=lambda x:p.simple_path(canvas, txt_input, 0, subpanel));
-		
-		toolbar.add_widget(path_btn);
 		toolbar.add_widget(cliq_btn);
 		'''
 
@@ -1544,7 +1704,7 @@ class GraphApp(App):
 		
 		# Preparar grafo inicial
 		G = Graph();
-		G.insert_Vertexes(10);
+		G.insert_Vertexes(30);
 		
 		# Widget raíz
 		root = GridLayout();
