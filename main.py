@@ -7,10 +7,12 @@ disponible en github.com
 from kivy.uix.widget import Widget
 from kivy.uix.button import Button
 from kivy.uix.label import Label
+from kivy.uix.progressbar import ProgressBar
 from kivy.uix.textinput import TextInput
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
+from kivy.core.window import Window
 from kivy.graphics import (
 	Color, Rectangle, Ellipse, Line
 )
@@ -258,6 +260,19 @@ class Graph:
 		
 		return name;
 	
+	# Quitar de la lista de subgrafos
+	def del_sub(self, name):
+		
+		# No hacer nada si se recibe nombre igual a None
+		if name == None: return;
+		
+		# Restar 1 al número de subgrafos al quitar uno
+		if name in self.Sub: 
+			self.subgraphs -= 1;
+			
+			# Quitar el subgrafo
+			del self.Sub[name];
+	
 	# Obtener subgrafo a partir de su nombre
 	def get_subgraph(self, name):
 		
@@ -366,6 +381,9 @@ class GraphCalc:
 	
 	# Conjunto de vecinos de un vertice
 	def neighbor_set(self, v, G):
+		
+		# Devolver vacío si v es negativo
+		if v < 0: return [];
 	
 		N = [];	# Conjunto de vecinos
 		
@@ -376,7 +394,7 @@ class GraphCalc:
 		return N;
 	
 	# Grados de un vértice
-	def degrees(self, v, G, tst):
+	def degrees(self, v, G, tst = False):
 		
 		# Devolver el tamaño del conjunto de vecinos
 		N = self.neighbor_set(v, G);	# conjunto de vecinos de v
@@ -437,28 +455,152 @@ class GraphCalc:
 			
 			# Imprimir P y X después de la traslación
 			if tst: print("resulta en: P = "+str(P)+" y X = "+str(X));
-		
-	def bron_kerbosch_pivot(self):
+	
+	#Alg. Bron-Kerbosch para cliques maximales (mejorado con pivoting)
+	def bron_kerbosch_piv(self, G, P_arg, tst = False, R_arg = [], X_arg = [], lvl = 1):
 		
 		'''
 		Con pivoting:
-		La forma basica del algoritmo, descrito arriba, es ineficiente en el caso de grafos con muchos cliques no-maximales: hace una llamada recursiva por cada clique, maximal o no. Para ahorrar tiempo y permitir al algoritmo retroceder más rápido hacia ramas de busqueda que contienen cliques no maximales, Bron y Kerbosch introdujeron una variante del algoritmo que involucra un "vertice pivote" u, escogido de P (O de forma más general, como posteriores investigaciones mostraron, de P U X). 	
-		Cualquier clique maximal debe incluir ya sea u o uno de sus no-vecinos porque, de lo contrario, el clique podría aumentar agregándole u. Por lo tanto, solo u y sus no vecinos necesitan ser probados como candidatos para el vértice v que es agregado a R en cada llamada recursiva.
+		Ejecutar el algoritmo sobre el conjunto de u más sus no-vecinos, u es el vértice pivote.
 		'''
 		
-		# Aún no implementado
-		pass;
+		# Computar sin alterar los valores de otras ramas
+		P = P_arg.copy();
+		cands = P.copy();
+		R = R_arg.copy();
+		X = X_arg.copy();
+		
+		# Limpiar cliques al comenzar
+		if lvl == 1: self.found_cliques = [];
+		
+		# Imprmir entrada
+		if tst:
+			print("----------> llamada BK: nivel = "+str(lvl));
+			print("R: "+str(R));
+			print("P: "+str(P));
+			print("X: "+str(X));
+		
+		# Guardar R como clique max. si P y X son vacíos
+		if P == [] and X == []:
+			self.found_cliques.append(R);
+		
+		# Escoger pivote del conjunto P U X, el de mayor grado
+		U = P + X;	# Unión
+		u = -1; # Pivote
+		
+		# Agregar subgrafo auxiliar P U X
+		G.add_sub(U, 'aux');
+		if tst: print("P U X: ",G.get_sub('aux'));
+		
+		# Calcular orden por grados de P U X
+		order = self.deg_order(G.get_subgraph('aux'));
+		
+		# Trabajarlo de mayor a menor
+		order.reverse();
+		if tst: print("Orden por grados: ",order);
+		
+		# Trabajarlo con las etiquetas de P U X
+		order = self.res_sub(order, U);
+		if tst: print("Orden por grados (label): ",order);
+		
+		# Borrar el subgrafo auxiliar
+		G.del_sub('aux');
+		if tst: print("auxiliar: ",G.get_sub('aux'));
+		
+		# Escoger el primer vértice de mayor grado como pivote
+		for vx in order:
+			if o.contains(U, vx): 
+				u = vx;
+				break;
+		
+		Nu = self.neighbor_set(u, G);	# Vecinos del pivote
+		
+		# Imprimir elección del pivote
+		if tst:
+			print("Vértice pivote: ",u," escogido de ",U," tiene vecinos: ",Nu);
+		
+		# Descartar los vecinos del pivote del conjunto de candidatos
+		for vx in Nu:
+			if o.contains(cands, vx): cands.remove(vx);
+		
+		# Imprimir candidatos
+		if tst:
+			print("Los candidatos son: ",cands);
+		
+		# Recorrer vértices candidatos hasta que, por eliminación, no haya ninguno.
+		while not cands == []:
+		
+			v = cands[0];	# Escoger el primer vertice candidato, v
+			Nv = self.neighbor_set(v, G);	# Calcular vecinos de v
+			P_int_Nv = self.intersection_set(P, Nv);	# Restringir P a los vecinos de v
+			X_int_Nv = self.intersection_set(X, Nv);	# Restringir X a los vecinos de v
+			
+			# Imprimir llamada recursiva que se hará
+			if tst: print("vertice candidato: "+str(v)+" tiene vecinos "+str(Nv)+". P_Nv = "+str(P_int_Nv)+" y X_Nv = "+str(X_int_Nv));
+			
+			# Hacer la llamada recursiva
+			self.bron_kerbosch_piv(G, P_int_Nv, tst, R + [v], X_int_Nv, lvl+1);
+			
+			# Imprimir traslación de v
+			if tst: print("movemos "+str(v)+" desde P = "+str(P)+" hasta X = "+str(X));
+			
+			# Trasladar v desde P hasta X
+			P.remove(v);
+			X.append(v);
+			
+			# Siguiente candidato
+			cands.remove(v);
+			
+			# Imprimir P y X después de la traslación
+			if tst: print("resulta en: P = "+str(P)+" y X = "+str(X));
 	
-	def bron_kerbosch_order(self):
+	# Alg. Bron-Kerbosch para cliques maximales (forma básica)
+	def bron_kerbosch_basic(self, G, tst = False):
+		
+		# Ejectutar el algoritmo sin pivoting
+		self.bron_kerbosch(G, G.V, tst);
+	
+	# Alg. Bron-Kerbosch para cliques maximales (con pivoting)
+	def bron_kerbosch_pivot(self, G, tst = False):
+		
+		# Ejectutar el algoritmo con pivoting
+		self.bron_kerbosch_piv(G, G.V, tst);
+	
+	# Alg. Bron-Kerbosch para cliques maximales (mejorado con un orden de degen.)
+	def bron_kerbosch_order(self, G, tst = False):
 	
 		'''
 		Con ordenamiento de vertices:
-		Un método alternativo de mejorar la forma basica del algoritmo Bron-Kerbosch involucra renunciar al pivoting en el nivel mas externo de la recusión y, en su lugar, escoger el orden de las llamadas recursivas con cuidado para minimizar los tamaños de los conjuntos P de vertices candidatos dentro de cada llamada recursiva.
-		degen(G) de un grafo G es el minimo numero d tal que todo subgrafo de G tiene un vertice de grado d o menor. Todo grafo tiene un orden de degeneración, un orden de los vertices tal que cada vertice tiene d o menos vecinos que vienen más tarde en el orden; un orden de degeneración puede ser encontrado en tiempo lineal seleccionando repetidamente el vertice de menor grado entre los vertices restantes. Si el orden de los vertices v que el algoritmo Bron-Kerbosch recorre es un orden de degeneración, entonces el conjunto P de vertices candidatos en cada llamada (los vecinos de v que van después en el orden) tendrá, con seguridad, un tamaño de a lo sumo d. El conjunto X de vertices excluidos consistirá en todos los vecinos previos de v, y puede ser mucho más grande que d. En las llamadas recursivas al algoritmo bajo el nivel más alto de recursión, puede emplearse la versión con pivoting.
+		Se ejecuta el algoritmo Bron-Kerbosch con un orden de degeneración P como el nivel de recursión más externo.
 		'''
 		
-		# Aún no implementado
-		pass;
+		# Calcular orden de degeneración
+		P = self.matula_beck_deg_order(G, tst);
+		
+		# Ejectutar el algoritmo con pivoting
+		self.bron_kerbosch_piv(G, P, tst);
+	
+	# Orden de los vértices por grados
+	def deg_order(self, G, tst = False):
+		
+		k = 0; # Grado del vértice
+		L = []; # Orden de los vértices
+		V = G.V.copy(); # Vértices del grafo
+		
+		# Agregar vértice a vértice, según su grado
+		while(len(L) < len(G.V)):
+			if tst: print("L = ",L,", V = ",V);
+			for v in G.V:
+				if (o.contains(V, v)) and (self.degrees(v, G) == k):
+					if tst: print(v," está en V y tiene grado ",self.degrees(v, G));
+					L.append(v);
+					V.remove(v);
+			k += 1;
+		
+		# Imprimir orden
+		if tst: print("Orden por grados: ",L);
+		
+		return L;
 	
 	# Alg. Matula-Beck para encontrar un orden de degeneración
 	def matula_beck_deg_order(self, G, tst = False):
@@ -526,8 +668,13 @@ class GraphCalc:
 								print("w = "+str(w)+" tiene un grado menos: dw = "+str(deg[w])+" y su prioridad es: D["+str(deg[w])+"] = "+str(D[deg[w]]));
 					break;
 		
+		# Devolver el orden desde el vértice de menor grado
+		L.reverse();
+		
 		# Imprimir orden final
 		if tst: print("Orden de degeneración: L = "+str(L));
+		
+		return L;
 	
 	# Iteracion del alg. Camino simple/doble
 	def simple_path_next(self, G, R, Vn, tst = False):
@@ -563,8 +710,11 @@ class GraphCalc:
 		self.R1 = s;	# Ruso 1
 		self.R2 = s;	# Ruso 2
 		
-		# Señalar el comienzo
-		if tst: print("---------> Simple Path:");
+		# Notificar llamada a la función
+		if tst: 
+			print("---------> Simple Path:");
+			print("vértices: ",V);
+			print("Comienza en: ",s);
 		
 		# Limpiar vértices al comenzar
 		self.ue = [];
@@ -599,7 +749,7 @@ class GraphCalc:
 			
 			# Contar los vecinos UE de v
 			for u in self.ue:
-				if G.get_edge(v, u) == 1:
+				if G.get_edge(v, u) > 0:
 					count += 1;
 					
 			# Decidir sobre v
@@ -634,8 +784,11 @@ class GraphCalc:
 		self.R1 = s;	# Ruso 1
 		self.R2 = s;	# Ruso 2
 		
-		# Señalar el comienzo
-		if tst: print("---------> Simple Path:");
+		# Notificar llamada a la función
+		if tst: 
+			print("---------> Double Path:");
+			print("vértices: ",V);
+			print("Pasa por: ",s);
 		
 		# Limpiar vértices al comenzar
 		self.ue = [];
@@ -661,6 +814,9 @@ class GraphCalc:
 		# Imprimir camino parcial
 		if tst: print("Camino parcial: "+str(P));
 		
+		# Dar vuelta a la lista de vértices ue para almacenar en orden correcto los UE
+		self.ue.reverse();
+		
 		# Extender el camino hacia la dirección de R2
 		vf = self.simple_path_next(G, self.R2, V, tst);
 		while(not vf == self.R2):
@@ -672,6 +828,9 @@ class GraphCalc:
 		self.R2 = vf;
 		if o.contains(self.ue, self.R2): self.ue.remove(self.R2);
 		
+		# Dar vuelta a la lista de vértices ue, para encajar con R1 y R2
+		self.ue.reverse();
+		
 		# Imprimir camino calculado
 		if tst: print("Camino calculado: "+str(P));
 		
@@ -681,7 +840,7 @@ class GraphCalc:
 			
 			# Contar los vecinos UE de v
 			for u in self.ue:
-				if G.get_edge(v, u) == 1:
+				if G.get_edge(v, u) > 0:
 					count += 1;
 					
 			# Decidir sobre v
@@ -703,6 +862,39 @@ class GraphCalc:
 			print("F: "+str(self.france));
 			print("F/P: "+str(self.peninsular));
 			print("F/P/E: "+str(self.uk));
+	
+	# Cálculo de cotas inferiores para caminos peninsulares/franco-españoles
+	def pen_path(self, G, tst = False):
+		
+		per = self.france + self.peninsular + self.uk; # Periferias
+		
+		# Agregar subgrafo de periferias
+		G.add_sub(per, 'periferias');
+		if tst: print("Periferias: ",G.get_sub('periferias'));
+		
+		# Hacer el cálculo para todos los vértices de la periferia
+		for i in range(len(per)):
+			
+			# Calcular un camino simple desde v en el grafo de periferias
+			self.simple_path(G.get_subgraph('periferias'), i);
+			
+			# Trabajar resultados con las etiquetas que corresponden
+			v = self.res_sub([i],per)[0];
+			ue = self.res_sub(self.ue,per);
+			R1 = self.res_sub([self.R1],per)[0];
+			R2 = self.res_sub([self.R2],per)[0];
+			
+			# Imprimir camino peninsular/franco-español de cada vértice
+			if R1 == R2:
+				print(v, ' tiene un cfe de, al menos, ',len(ue));
+				print('Camino simple: ',[R2]+ue);
+			else:
+				print(v, ' tiene un cfe de, al menos, ',len(ue)+1);
+				print('Camino simple: ',[R2]+ue+[R1]);
+			
+		# Borrar el subgrafo de periferias
+		G.del_sub('periferias');
+		if tst: print("Periferias: ",G.get_sub('periferias'));
 
 # Vértice visual
 class VertexCanvas(Widget):
@@ -907,21 +1099,22 @@ class GraphCanvas(Widget):
 		for v in self.V:
 			if not v.selected: v.separate(self.d, tst);
 		
-		# Contar los subgrafos de G
-		self.num_subs = self.G.subgraphs;
+		# Contar los subgrafos en panel
+		self.num_subs = len(subpanel.Sub);
 		
 		# Imprimir salida de funciones
-		toolbar.out(self.out);
+		toolbar.out(self.out + self.print_log());
 		
 		# Redibujar
 		self.draw(self.G);
 	
 	# Impresión de logs
 	def print_log(self):
-		msg = '';
+		msg = '\n';
 		
 		# Info. subgrafos
-		msg += 'subgrafos: '+str(self.num_subs);
+		msg += 'subgrafos en memoria: '+str(self.G.subgraphs);
+		msg += '\n subgrafos en panel: '+str(self.num_subs);
 		msg += '\n subgrafo actual: '+str(self.view_name);
 		
 		# Notificar si la función de subgrafos está activa
@@ -946,8 +1139,7 @@ class GraphCanvas(Widget):
 			msg += '\n Otro clic para invertir la arista';
 		else: msg += '-';
 			
-		with self.canvas:	
-			Label(font_size='10', text=msg, center_x=self.width/6, top=self.height/6, halign='left',valign='top');
+		return msg;
 	
 	# Valores iniciales del lienzo
 	def init(self, G, subpanel, d, tst = False):
@@ -1042,9 +1234,6 @@ class GraphCanvas(Widget):
 		
 		# Dibujar vértices
 		self.draw_vertexes();
-		
-		# Imprimir mensajes
-		self.print_log();
 	
 	# Dibujar los vertices del subgrafo actual
 	def draw_vertexes(self):
@@ -1216,6 +1405,24 @@ class GraphCanvas(Widget):
 		for i in V_sel:
 			self.V[i].subgraph(False);
 	
+	# Agregar subgrafos automaticamente
+	def auto_add_subs(self, subs, names, panel):
+	
+		# Agregar cada subgrafo por la via común
+		for i in range(len(subs)):
+		
+			# Activar la función
+			self.subgraph();
+			
+			# Seleccionar los vértices del subgrafo
+			self.subgraph_vertices(subs[i]);
+			
+			# Confirmar subgrafo con el nombre correspondiente
+			self.subgraph_confirm(names[i], panel);
+			
+			# Desactivar función
+			self.subgraph();
+	
 	# Intercambiar un par de etiquetas
 	def lbl_change(self, lbls, tst = False):
 	
@@ -1252,12 +1459,12 @@ class GraphCanvas(Widget):
 		for i in range(len(self.V)):
 			self.V[vec[i]].pos_set(pos[i][0], pos[i][1]);
 	
-	# Algoritmo camino simple sobre la vista actual, que pase por el primer vértice
+	# Algoritmo camino simple sobre la vista actual, desde el primer vértice
 	def simple_path(self):
 		
 		Sub_G = self.G.get_subgraph(self.view_name); # Subgrafo seleccionado
 		
-		# Calcular un camino simple, que pase por el primer vértice.
+		# Calcular un camino simple, desde el primer vértice.
 		self.C.simple_path(Sub_G, 0);
 		
 		# Obtener resultados de la calculadora
@@ -1296,36 +1503,162 @@ class GraphCanvas(Widget):
 		self.out += "\n P/F = "+ str(peninsular);
 		self.out += "\n I/P/F = "+ str(uk);
 	
-	def auto_add_subs(self, subs, names, panel):	# agregar subgrafos automaticamente
-		for i in range(len(subs)):
-			self.subgraph(True);
-			for s in subs[i]:
-				self.V_sub.append(s);
-				self.V[s].sub = True;
-				self.log = "v = " + str(self.V[s].id);	# info del vertices
-				self.log += '\n'+"tipo = " + str(self.V[s].type);
-			#print(str(names[i])+" en proceso con bandera verde en: "+str(self.display_new_sub));
-			self.subgraph_confirm(names[i]);
-			panel.update(self);
-		#print(self.G.Sub);
+	# Algoritmo camino soble sobre la vista actual, que pase por el primer vértice
+	def double_path(self, tst = False):
+		
+		Sub_G = self.G.get_subgraph(self.view_name); # Subgrafo seleccionado
+		
+		# Calcular un camino doble, que pase por el primer vértice.
+		self.C.double_path(Sub_G, 0, tst);
+		
+		# Obtener resultados de la calculadora
+		r1 = self.view_V[self.C.R1]; # Ruso 1
+		r2 = self.view_V[self.C.R2]; # Ruso 2
+		ue = self.C.res_sub(self.C.ue, self.view_V); # Vértices UE
+		france = self.C.res_sub(self.C.france, self.view_V); # Vértices F
+		peninsular = self.C.res_sub(self.C.peninsular, self.view_V); # F/P
+		uk = self.C.res_sub(self.C.uk, self.view_V); # F/P/I
+		included = [r2]+ue+[r1]+france+peninsular+uk; # Vista actual
+		excluded = []; # Vértices que no pertenecen a la vista actual
+		
+		# Reunir los vértices que no pertenecen a la vista actual
+		for v in self.V:
+			if not o.contains(included, v.id): excluded.append(v.id);
+		
+		# Eliminar vértice ruso duplicado, si lo hay.
+		if r1 == r2: 
+			included.remove(r1);
+		
+		# Señalizar el camino
+		self.G.mark_path([r2]+ue+[r1]);
+		
+		# Cambiar etiquetas del grafo según el camino encontrado
+		self.lbl_change_sev(included+excluded);
+		
+		# Vaciar salida
+		self.out = '';
+		
+		# Reportar resultados
+		self.out += "Camino doble";
+		self.out += "\n R1 = "+ str(r1);
+		self.out += "\n R2 = "+ str(r2);
+		self.out += "\n EU = "+ str(ue);
+		self.out += "\n F = "+ str(france);
+		self.out += "\n P/F = "+ str(peninsular);
+		self.out += "\n I/P/F = "+ str(uk);
+	
+	# Calcular cliques y conjuntos independientes sobre el grafo actual
+	def calc_cliq_ind(self, subpanel, tst = False):
+		
+		# Calcular cliques maximales del subgrafo
+		self.C.bron_kerbosch_order(self.G);
+		
+		# Guardar conjuntos calculados
+		cliq = self.C.found_cliques;
+		
+		# Calcular conjuntos independientes maximales del subgrafo
+		Com = self.G.get_complement();
+		self.C.bron_kerbosch_order(Com);
+		
+		# Guardar conjuntos calculados
+		ind = self.C.found_cliques;
+		
+		# Preparar lista de nombres
+		names = []; # Lista de nombres
+		
+		# Poner nombres a los cliques
+		for sub in cliq:
+			names.append("K"+str(len(sub))+": "+str(sub));
+		
+		# Poner nombres a los conjuntos independientes
+		for sub in ind:
+			names.append("Ind"+str(len(sub))+": "+str(sub));
+		
+		# Reiniciar el panel de subgrafos
+		subpanel.setup(self);
+		
+		# Reiniciar vista
+		subpanel.display_subgraph(self, 'self');
+		
+		# Almacenar cliques y conjuntos independientes
+		self.auto_add_subs(cliq + ind, names, subpanel);
+		
+		# Ordenar subgrafos en el panel
+		subpanel.sort_subs(self, True);
+		
+		# Vaciar salida
+		self.out = '';
+		
+		# Imprimir número de subconjuntos calculados
+		self.out = "Número de cliques e ind's: "+ str(len(cliq) + len(ind));
+	
+	# Calcular cliques sobre el grafo actual
+	def calc_cliq(self, subpanel, tst = False):
+		
+		# Calcular cliques maximales del subgrafo
+		self.C.bron_kerbosch_order(self.G);
+		
+		# Guardar conjuntos calculados
+		cliq = self.C.found_cliques;
+		
+		# Preparar lista de nombres
+		names = []; # Lista de nombres
+		
+		# Poner nombres a los cliques
+		for sub in cliq:
+			names.append("K"+str(len(sub))+": "+str(sub));
+		
+		# Reiniciar el panel de subgrafos
+		subpanel.setup(self);
+		
+		# Reiniciar vista
+		subpanel.display_subgraph(self, 'self');
+		
+		# Almacenar cliques
+		self.auto_add_subs(cliq, names, subpanel);
+		
+		# Ordenar subgrafos en el panel
+		subpanel.sort_subs(self, True);
+		
+		# Vaciar salida
+		self.out = '';
+		
+		# Imprimir número de subconjuntos calculados
+		self.out = "Número de cliques: "+ str(len(cliq));
+	
+	# Calcular caminos periféricos
+	def periferia(self):
+		
+		# Indicar llamada a la función
+		print('<Periferias>');
+		
+		# Imprimir caminos peninsulares/franco-españoles calculados
+		self.C.pen_path(self.G, True);
 
 # Barra de herramientas
 class Toolbar(GridLayout):
 
-	txt_out = TextInput(multiline=True, size_hint_x=None, width=100, background_color=(.3,.3,.3), hint_text='Salida', readonly=True); # Salida de funciones
+	wid_height = 20; # Altura de los botones
 
+	txt_in = TextInput(multiline=False, size_hint_x=None, width=100, size_hint_y=None, height=wid_height+10, hint_text='Ex. etiquetas', text_validate_unfocus=False, font_size=10); # Entrada de texto
+
+	txt_out = TextInput(multiline=True, size_hint_x=None, width=100, background_color=(.3,.3,.3), hint_text='Salida', readonly=True, font_size=10); # Salida de funciones
+	
 	# Imprimir salida
 	def out(self, out):
 		
 		# Imprimirla en el widget hijo
 		self.txt_out.text = out;
 		
+		# Enviar el cursor al inicio
+		self.txt_out.cursor = (0,0);
+		
 	# Vaciar un campo de texto
 	def void_text(self, txt):
 		txt.text = '';
 
 	# Solicitar al dibujante crear un subgrafo
-	def subgraph_definition(self, GC, subpanel, value, btn_sub, check_sub, btn_ran, btn_path, txt_in, confirm, tst = False):
+	def subgraph_definition(self, GC, subpanel, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, txt_in, confirm, tst = False):
 	
 		# Imprimir un separador para monitorizar las acciones del botón y el checkbox
 		if tst: print("------.");
@@ -1359,14 +1692,18 @@ class Toolbar(GridLayout):
 					print("Es un invitado, insultarlo.");
 		
 		# Manipular la barra según se entre/salga de la función de subgrafos
-		self.subgraph_buttons(GC, value, btn_sub, check_sub, btn_ran, btn_path, txt_in, tst);
+		self.subgraph_buttons(GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, txt_in, tst);
 
 	# Mostrar/Ocultar herramientas
-	def subgraph_buttons(self, GC, value, btn_sub, check_sub, btn_ran, btn_path, txt_in, tst = False):
+	def subgraph_buttons(self, GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, txt_in, tst = False):
 		
 		# Activar/Desactivar botones de otras funciones
 		btn_ran.disabled = value;
 		btn_path.disabled = value;
+		btn_path_2.disabled = value;
+		btn_cliq.disabled = value;
+		btn_cliq_ind.disabled = value;
+		btn_per.disabled = value;
 		
 		# Cambiar proósito de la entrada de texto
 		if value: txt_in.hint_text = 'Sel. subgrafo';
@@ -1410,7 +1747,7 @@ class Toolbar(GridLayout):
 		
 			# Cambiar etiquetas de los 2 primeros números introducidos
 			GC.lbl_change(l_n[0:2]);
-			
+		
 		# Seleccionar vértices del vector introducido
 		elif hint_text == 'Sel. subgrafo':
 			GC.subgraph_vertices(l_n);
@@ -1436,76 +1773,93 @@ class Toolbar(GridLayout):
 		self.orientation = "rl-tb";
 		self.size_hint_x = None;
 		self.width = 100;
-		self.rows = 15;
+		self.rows = 16;
 		self.cols = 1;
 		
 		# Botón para generar nuevo grafo random
-		btn_ran = Button(font_size='10',text='Random', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		btn_ran = Button(font_size='10',text='Random', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
 		btn_ran.bind(on_press=lambda x:self.new_random(GC, subpanel, tst));
 		self.add_widget(btn_ran);
 		
 		# Checkbox: aristas del grafo original
-		lbl_or = Label(font_size='10', text='Grafo', size_hint_y=None, height=25, size_hint_x=None, width=100);
-		checkbox_o = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=True, color=(255,0,0));
+		lbl_or = Label(font_size='10', text='Grafo', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		checkbox_o = CheckBox(size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100, active=True, color=(255,0,0));
 		checkbox_o.bind(active=lambda x,y:GC.on_or_active(checkbox_o.active));
 		self.add_widget(lbl_or);
 		self.add_widget(checkbox_o);
 		
 		# Checkbox: aristas del grafo complemento
-		lbl_com = Label(font_size='10', text='Complemento', size_hint_y=None, height=25, size_hint_x=None, width=100);
-		checkbox_c = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=False, color=(0,0,255));
+		lbl_com = Label(font_size='10', text='Complemento', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		checkbox_c = CheckBox(size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100, active=False, color=(0,0,255));
 		checkbox_c.bind(active=lambda x,y:GC.on_com_active(checkbox_c.active));
 		self.add_widget(lbl_com);
 		self.add_widget(checkbox_c);
 		
 		# Botón Camino simple
-		btn_path = Button(font_size='10', text='Camino simple', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		btn_path = Button(font_size='10', text='Camino simple', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
 		btn_path.bind(on_press=lambda x:GC.simple_path());
 		self.add_widget(btn_path);
 		
+		# Botón Camino doble
+		btn_path_2 = Button(font_size='10', text='Camino doble', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		btn_path_2.bind(on_press=lambda x:GC.double_path());
+		self.add_widget(btn_path_2);
+		
+		# Botón de calcular cliques
+		btn_cliq = Button(font_size='10', text="Cliques", size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		btn_cliq.bind(on_press=lambda x:GC.calc_cliq(subpanel, tst));
+		self.add_widget(btn_cliq);
+		
+		# Botón de calcular cliques y conjuntos independientes
+		btn_cliq_ind = Button(font_size='10', text="Cliques e Ind's", size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		btn_cliq_ind.bind(on_press=lambda x:GC.calc_cliq_ind(subpanel, tst));
+		self.add_widget(btn_cliq_ind);
+		
+		# Botón de cálculo de caminos periféricos
+		btn_per = Button(font_size='10',text='Periferia', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		btn_per.bind(on_press=lambda x:GC.periferia());
+		self.add_widget(btn_per);
+		
 		# Botón de reinicio de posiciones
-		btn_res = Button(font_size='10',text='Reiniciar pos.', size_hint_y=None, height=30, size_hint_x=None, width=100);
+		btn_res = Button(font_size='10',text='Reiniciar pos.', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
 		btn_res.bind(on_press=lambda x:GC.recalc_vertexes_pos());
 		self.add_widget(btn_res);
 		
 		# Kit de creación de subgrafos
-		lbl_sub = Label(font_size='10', text='Definir subgrafo', size_hint_y=None, height=25, size_hint_x=None, width=100);
-		btn_sub = Button(font_size='10', text='Confirm. subgrafo', size_hint_y=None, height=30, size_hint_x=None, width=100, disabled=True);
-		checkbox_sub = CheckBox(size_hint_y=None, height=30, size_hint_x=None, width=100, active=False, color=(0,1,1));
-		btn_sub.bind(on_press=lambda x:self.subgraph_definition(GC, subpanel, False, btn_sub, checkbox_sub, btn_ran, btn_path, txt_in, True));
-		checkbox_sub.bind(active=lambda x,y:self.subgraph_definition(GC, subpanel, checkbox_sub.active, btn_sub, checkbox_sub, btn_ran, btn_path, txt_in, False));
+		lbl_sub = Label(font_size='10', text='Definir subgrafo', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		btn_sub = Button(font_size='10', text='Confirm. subgrafo', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100, disabled=True);
+		checkbox_sub = CheckBox(size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100, active=False, color=(0,1,1));
+		btn_sub.bind(on_press=lambda x:self.subgraph_definition(GC, subpanel, False, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, self.txt_in, True));
+		checkbox_sub.bind(active=lambda x,y:self.subgraph_definition(GC, subpanel, checkbox_sub.active, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, self.txt_in, False));
 		self.add_widget(lbl_sub);
 		self.add_widget(checkbox_sub);
 		
 		# Campo de texto (entrada)
-		txt_in = TextInput(multiline=False, size_hint_x=None, width=100, size_hint_y=None, height=30, hint_text='Ex. etiquetas', text_validate_unfocus=False);
-		txt_in.bind(on_double_tap=lambda x:self.void_text(txt_in));
-		txt_in.bind(on_text_validate=lambda x:self.input_manage(GC, txt_in, txt_in.hint_text));
-		self.add_widget(txt_in);
+		self.txt_in.bind(on_double_tap=lambda x:self.void_text(self.txt_in));
+		self.txt_in.bind(on_text_validate=lambda x:self.input_manage(GC, self.txt_in, self.txt_in.hint_text));
+		self.add_widget(self.txt_in);
 		self.add_widget(btn_sub);
 		
 		# Campo de texto (salida)
 		self.txt_out.bind(on_double_tap=lambda x:self.void_text(self.txt_out));
 		self.add_widget(self.txt_out);
-		
-		'''
-		
-		cliq_btn = Button(font_size='10', text='Cliques', size_hint_y=None, height=30, size_hint_x=None, width=100);
-		cliq_btn.bind(on_press=lambda x:p.calc_cliques(canvas, subpanel));
-		toolbar.add_widget(cliq_btn);
-		'''
 
 # Panel de subgrafos
 class SubPanel(GridLayout):
 	
 	Sub = []; # Lista de nombres de los subgrafos almacenados
+	GC = None; # Dibujante asociado
 	up_btn = Button(font_size='10', text='/|', size_hint_y=None, height=30, size_hint_x=None, width=30); # Botón up
 	dwn_btn = Button(font_size='10', text='|/', size_hint_y=None, height=30, size_hint_x=None, width=30); # Botón down
-	first_sub_to_show = NumericProperty(0.0);	# Primer subgrafo visible
+	first_sub_to_show = NumericProperty(0);	# Primer subgrafo visible
+	current = 0; # Grafo a visualizar
 	holding = 0; # Bandera indicadora de si los botones arriba o abajo están sostenidos
 
 	# Valores iniciales
 	def setup(self, GC, tst = False):
+		
+		# Dibujante asociado
+		self.GC = GC;
 		
 		# Permitir, a lo sumo, 18 subgrafos en el panel más 2 botones: arriba y abajo.
 		self.cols = 1;
@@ -1546,6 +1900,18 @@ class SubPanel(GridLayout):
 		# Holding de los botones/arriba abajo, por alguna razón, no se previene con on_press
 		if tst and self.holding > 0: print("holding");
 	
+	# Visualizar subgrafo por acción del teclado
+	def set_current(self, GC, n):
+		
+		# Cambiar el subgrafo a dibujar si es posible
+		new_pos = self.current + n; # Posición destino
+		if new_pos >= 0 and new_pos < len(self.Sub):
+			self.current = new_pos;
+		else: return;
+		
+		# Pasar la vista al dibujante
+		self.display_subgraph(GC, self.Sub[self.current]);
+	
 	# Función para ignorar la duplicidad de arriba/abajo por holding
 	def holding_manage(self, up, tst = False):
 	
@@ -1569,9 +1935,13 @@ class SubPanel(GridLayout):
 		if tst: 
 			print("up");
 	
+		# Cambiar grafo visible
+		self.set_current(self.GC, -1);
+	
 		# Retroceder un paso en la lista si aún no se ha llegado al inicio
 		if self.first_sub_to_show == 0: return;
-		else: self.move_panel(-1, tst);
+		else: 
+			self.move_panel(-1, tst);
 
 	# Función del botón abajo
 	def go_down(self, tst = False):
@@ -1580,12 +1950,16 @@ class SubPanel(GridLayout):
 		if tst: 
 			print("down");
 		
+		# Cambiar grafo visible
+		self.set_current(self.GC, 1);
+		
 		# No hace nada si aún no hay suficientes botones almacenados
 		if len(self.Sub) <= 18: return;
 		
 		# Avanzar un paso en la lista si aún no se ha llegado al final
 		if self.first_sub_to_show == len(self.Sub) - 18: return;
-		else: self.move_panel(1, tst);
+		else: 
+			self.move_panel(1, tst);
 
 	# Avanzar/retroceder en la lista
 	def move_panel(self, n, tst = False):
@@ -1634,7 +2008,7 @@ class SubPanel(GridLayout):
 		sub_name = self.Sub[idx+i]; # Nombre del subgrafo
 		
 		# Crear botón, agregarle la funcionalidad y mostrarlo
-		aux_btn = Button(font_size='10', text=sub_name, size_hint_y=None, height=30, size_hint_x=None, width=100);
+		aux_btn = Button(font_size='10', text=sub_name[0:10], size_hint_y=None, height=30, size_hint_x=None, width=100);
 		aux_btn.bind(on_press=lambda x:self.display_subgraph(GC, sub_name));
 		self.add_widget(aux_btn);
 		
@@ -1693,6 +2067,118 @@ class SubPanel(GridLayout):
 		# Actuaizar panel con botones organizados
 		self.reprint_subs(GC);
 
+# Gestor del teclado
+class MyKeyboardListener(Widget):
+
+	subpanel = None;
+	GC = None;
+	toolbar = None;
+
+	def __init__(self, GC, toolbar, subpanel, **kwargs):
+		super(MyKeyboardListener, self).__init__(**kwargs)
+		self._keyboard = Window.request_keyboard(
+		self._keyboard_closed, self, 'text');
+		
+		# No afectar el contenido de la pantalla
+		self.size_hint_x = None;
+		self.width = 0;
+		self.size_hint_y = None;
+		self.height = 0;
+		
+		# Vincular el dibujante
+		self.GC = GC;
+		
+		# Vincular al panel de subgrafos
+		self.subpanel = subpanel;
+		
+		# Vincular al panel de subgrafos
+		self.toolbar = toolbar;
+		
+		if self._keyboard.widget:
+			
+			# If it exists, this widget is a VKeyboard object which,!you can use to change the keyboard layout.
+			pass
+		self._keyboard.bind(on_key_down=self._on_keyboard_down)
+
+	# Trabajar con un grafo proveniente del portapapeles
+	def paste_graph_to_work_on(self):
+		
+		# Vaciar salida
+		self.toolbar.txt_in.text = '';
+		
+		# Copiar el grafo del portapapeles
+		self.toolbar.txt_in.paste();
+		
+		# Convertir en lista sin espacios
+		l = list(self.toolbar.txt_in.text.rsplit(' '));
+		
+		# Crear un grafo nuevo
+		G = Graph();
+		
+		# Insetar los mismo vértices que el vértice actual
+		G.insert_Vertexes(self.GC.G.vertices);
+		
+		# Insertar aristas
+		for u in range(G.vertices):
+			for v in range(G.vertices):
+				src = l.pop(0);	# Fuente de la uv-ésima arista
+				e = ''; #uv-ésima arista
+				
+				# Obtener el valor numérico de la cadena de texto
+				for c in src:
+					if c.isnumeric(): e += c;
+				G.edge(u,v,int(e));
+		
+		# Enviárselo al dibujante
+		self.GC.set_graph(G, self.subpanel);
+		
+		# Vaciar salida, de nuevo
+		self.toolbar.txt_in.text = '';
+
+	def _keyboard_closed(self):
+	
+		# Notificar el cese de actividad
+		self._keyboard.unbind(on_key_down=self._on_keyboard_down)
+		self._keyboard = None
+	
+	def _on_keyboard_down(self, keyboard, keycode, text, modifiers):
+	
+		'''
+		print('The key', keycode, 'have been pressed')
+		print(' - text is %r' % text)
+		print(' - modifiers are %r' % modifiers)
+		'''
+		
+		# El keycode es int+str. Si se presiona escape, el gestor del teclado se apaga.
+		if keycode[1] == 'escape':
+			keyboard.release();
+		
+		# Ordenar bajar al panel si se presiona abajo
+		if keycode[1] == 'down':
+			self.subpanel.go_down();
+		
+		# Ordenar subir al panel si se presiona arriba
+		if keycode[1] == 'up':
+			self.subpanel.go_up();
+		
+		# Copiar la salida al clipboard al preisonar c
+		if keycode[1] == 'c':
+			print('out');
+			self.toolbar.txt_out.copy(self.toolbar.txt_out.text);
+		
+		# Copiar el grafo trabajado al portapapeles al preisonar g
+		if keycode[1] == 'g':
+			print('graph copy');
+			self.toolbar.txt_out.text = str(self.GC.G.E.data);
+			self.toolbar.txt_out.copy(self.toolbar.txt_out.text);
+		
+		# Copiar el grafo del portapapeles al preisonar p
+		if keycode[1] == 'p':
+			print('graph paste');
+			self.paste_graph_to_work_on();
+			
+		return True;
+
 # Aplicacion gráfica
 class GraphApp(App):
 	
@@ -1704,7 +2190,7 @@ class GraphApp(App):
 		
 		# Preparar grafo inicial
 		G = Graph();
-		G.insert_Vertexes(30);
+		G.insert_Vertexes(28);
 		
 		# Widget raíz
 		root = GridLayout();
@@ -1721,10 +2207,14 @@ class GraphApp(App):
 		toolbar = Toolbar();
 		toolbar.setup(graph_canvas, subpanel);
 		
+		# Gestor del teclado
+		key_mng = MyKeyboardListener(graph_canvas, toolbar, subpanel);
+		
 		# Contenido de las 3 columnas (lienzo, barra y panel)
 		root.add_widget(graph_canvas);
 		root.add_widget(toolbar);
 		root.add_widget(subpanel);
+		root.add_widget(key_mng);
 		
 		# Actualizar el contenido del lienzo con el grafo de la aplicación
 		Clock.schedule_interval(lambda x:graph_canvas.update(toolbar, subpanel, tst, G), 1.0 / 60.0);
