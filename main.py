@@ -866,7 +866,15 @@ class GraphCalc:
 	# Cálculo de cotas inferiores para caminos peninsulares/franco-españoles
 	def pen_path(self, G, tst = False):
 		
-		per = self.france + self.peninsular + self.uk; # Periferias
+		# No borrar los cálculos del camino previo
+		prev_R1 = self.R1;
+		prev_R2 = self.R2;
+		prev_ue = self.ue;
+		prev_france = self.france;
+		prev_peninsular = self.peninsular;
+		prev_uk = self.uk;
+		
+		per = prev_france + prev_peninsular + prev_uk; # Periferias
 		
 		# Agregar subgrafo de periferias
 		G.add_sub(per, 'periferias');
@@ -895,6 +903,14 @@ class GraphCalc:
 		# Borrar el subgrafo de periferias
 		G.del_sub('periferias');
 		if tst: print("Periferias: ",G.get_sub('periferias'));
+		
+		# Dejar como antes los cálculos del camino anterior
+		self.R1 = prev_R1;
+		self.R2 = prev_R2;
+		self.ue = prev_ue;
+		self.france = prev_france;
+		self.peninsular = prev_peninsular;
+		self.uk = prev_uk;
 
 # Vértice visual
 class VertexCanvas(Widget):
@@ -1728,6 +1744,9 @@ class Toolbar(GridLayout):
 	# Aplicar función a la entrada de texto
 	def input_manage(self, GC, txt_field, hint_text):
 		
+		# Darle el control de la entrada al listener principal, de nuevo
+		self.parent.children[0].set_keyboard();
+		
 		l_n = []; # lista para almacenar la entrada numérica
 		
 		# Recibir entrada y vaciar el campo de texto
@@ -2075,9 +2094,10 @@ class MyKeyboardListener(Widget):
 	toolbar = None;
 
 	def __init__(self, GC, toolbar, subpanel, **kwargs):
-		super(MyKeyboardListener, self).__init__(**kwargs)
-		self._keyboard = Window.request_keyboard(
-		self._keyboard_closed, self, 'text');
+	
+		# Setup del observador del teclado
+		super(MyKeyboardListener, self).__init__(**kwargs);
+		self.set_keyboard();
 		
 		# No afectar el contenido de la pantalla
 		self.size_hint_x = None;
@@ -2093,11 +2113,22 @@ class MyKeyboardListener(Widget):
 		
 		# Vincular al panel de subgrafos
 		self.toolbar = toolbar;
+
+	# Tomar control de la entrada
+	def set_keyboard(self):
+		
+		# Indicar toma del control
+		print("control over input gained.");
+		
+		# Retomar control de la entrada
+		self._keyboard = Window.request_keyboard(
+		self._keyboard_closed, self, 'text');
 		
 		if self._keyboard.widget:
 			
 			# If it exists, this widget is a VKeyboard object which,!you can use to change the keyboard layout.
 			pass
+		
 		self._keyboard.bind(on_key_down=self._on_keyboard_down)
 
 	# Trabajar con un grafo proveniente del portapapeles
@@ -2115,8 +2146,8 @@ class MyKeyboardListener(Widget):
 		# Crear un grafo nuevo
 		G = Graph();
 		
-		# Insetar los mismo vértices que el vértice actual
-		G.insert_Vertexes(self.GC.G.vertices);
+		# Insetar los vértices (raíz cuadrada del área)
+		G.insert_Vertexes(int(m.sqrt(len(l))));
 		
 		# Insertar aristas
 		for u in range(G.vertices):
@@ -2138,6 +2169,7 @@ class MyKeyboardListener(Widget):
 	def _keyboard_closed(self):
 	
 		# Notificar el cese de actividad
+		print('control gone.');
 		self._keyboard.unbind(on_key_down=self._on_keyboard_down)
 		self._keyboard = None
 	
@@ -2190,7 +2222,7 @@ class GraphApp(App):
 		
 		# Preparar grafo inicial
 		G = Graph();
-		G.insert_Vertexes(28);
+		G.insert_Vertexes(18);
 		
 		# Widget raíz
 		root = GridLayout();
