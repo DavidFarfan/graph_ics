@@ -336,12 +336,7 @@ class Graph:
 class GraphCalc:
 
 	found_cliques = []; # Cliques almacenados en el alg. Bron-Kerbosch
-	R1 = 0; # Vértices R del alg. Camino simple
-	R2 = 0;
-	ue = [];	# Vértices U del alg. Camino simple
-	france = []; # Vértices F del alg. Camino simple
-	peninsular = []; # Vértices F/P del alg. Camino simple
-	uk = [];	# Vértices F/P/E del alg. Camino simple
+	
 	
 	# Obtener un resultado con etiquetas cambiadas
 	def res_sub(self, res, view_V):
@@ -369,7 +364,7 @@ class GraphCalc:
 		# Devolver el valor entero
 		return int ( m.factorial(n) / ( m.factorial(k) * ( m.factorial(n - k) ) ) );
 
-	# Conjunto interseccion
+	# Conjunto intersección
 	def intersection_set(self, A, B):
 	
 		I = [];	# Intersección
@@ -675,242 +670,32 @@ class GraphCalc:
 		if tst: print("Orden de degeneración: L = "+str(L));
 		
 		return L;
-	
-	# Iteracion del alg. Camino simple/doble
-	def simple_path_next(self, G, R, Vn, tst = False):
-	
-		NR = self.intersection_set(Vn, self.neighbor_set(R, G)); # Vecinos no visitados de R
-		
-		# Si no quedan vecinos sin visitar, terminar el camino en este sentido.
-		if NR == []:
-		
-			# Imprimir operación
-			if tst: print("fin del camino para R = " + str(R));
-			return R;
-		
-		# si aún hay, tomar el primero, v, poner R en los vértices UE y marcar v como visitado 
-		else:
-			v = NR[0];
-			if not o.contains(self.ue, R): self.ue.append(R);
-			Vn.remove(v);
-			
-			# Imprimir operación
-			if tst: print("El siguiente de R = " + str(R) + " es: "+str(v));
-			return v;
 
-	# Encontrar un camino que inicie en un vértice fijo, s.
-	def simple_path(self, G, s, tst = False):
+	# Devolver el elemento mínimo
+	def min(self, arr):
 		
-		'''
-		Encontrar un camino desde s
-		'''
+		# No hacer nada si el arreglo es vacío
+		if arr == []: return None;
 		
-		P = deque(); # Camino
-		V = G.V.copy();	# Vertices no visitados
-		self.R1 = s;	# Ruso 1
-		self.R2 = s;	# Ruso 2
+		min = arr[0]; # Elemento mínimo
 		
-		# Notificar llamada a la función
-		if tst: 
-			print("---------> Simple Path:");
-			print("vértices: ",V);
-			print("Comienza en: ",s);
-		
-		# Limpiar vértices al comenzar
-		self.ue = [];
-		self.france = [];
-		self.peninsular = [];
-		self.uk = [];
-		
-		# Comenzar el camino en s
-		V.remove(s);
-		P.append(s);
-		
-		# Extender el camino hacia la dirección de R1
-		vf = self.simple_path_next(G, self.R1, V, tst);
-		while(not vf == self.R1):
-			self.R1 = vf;
-			P.append(self.R1);
-			vf = self.simple_path_next(G, self.R1, V, tst);
-		
-		# Determinar R1 definitivo
-		self.R1 = vf;
-		if o.contains(self.ue, self.R1): self.ue.remove(self.R1);
-		
-		# Determinar R2 definitivo
-		if o.contains(self.ue, self.R2): self.ue.remove(self.R2);
-		
-		# Imprimir camino calculado
-		if tst: print("Camino calculado: "+str(P));
-		
-		# Determinar los tipos para los vértices no visitados
-		for v in V:
-			count = 0;	# Contador de vecinos UE
-			
-			# Contar los vecinos UE de v
-			for u in self.ue:
-				if G.get_edge(v, u) > 0:
-					count += 1;
-					
-			# Decidir sobre v
-			if count > 1: 
-				if tst: print(str(v)+" es francés.");
-				self.france.append(v);
-			elif count == 1:
-				if tst: print(str(v)+" es peninsular o francés.");
-				self.peninsular.append(v);
-			else:
-				if tst: print(str(v)+" Puede ser cualquier tipo.");
-				self.uk.append(v);
-		
-		# imprimir tipos de vértices
-		if tst:
-			print("R1: "+str(self.R1));
-			print("R2: "+str(self.R2));
-			print("U: "+str(self.ue));
-			print("F: "+str(self.france));
-			print("F/P: "+str(self.peninsular));
-			print("F/P/E: "+str(self.uk));
-
-	# Encontrar un camino que pase por un vértice fijo, s
-	def double_path(self, G, s, tst = False):
-		
-		'''
-		Encontrar un camino doble que pase por s, implementa un deck para extender el camino hacia dos lados desde el vértice inicial
-		'''
-		
-		P = deque(); # Camino
-		V = G.V.copy();	# Vertices no visitados
-		self.R1 = s;	# Ruso 1
-		self.R2 = s;	# Ruso 2
-		
-		# Notificar llamada a la función
-		if tst: 
-			print("---------> Double Path:");
-			print("vértices: ",V);
-			print("Pasa por: ",s);
-		
-		# Limpiar vértices al comenzar
-		self.ue = [];
-		self.france = [];
-		self.peninsular = [];
-		self.uk = [];
-		
-		# Comenzar el camino en s
-		V.remove(s);
-		P.append(s);
-		
-		# Extender el camino hacia la dirección de R1
-		vf = self.simple_path_next(G, self.R1, V, tst);
-		while(not vf == self.R1):
-			self.R1 = vf;
-			P.append(self.R1);
-			vf = self.simple_path_next(G, self.R1, V, tst);
-		
-		# Determinar R1 definitivo
-		self.R1 = vf;
-		if o.contains(self.ue, self.R1): self.ue.remove(self.R1);
-		
-		# Imprimir camino parcial
-		if tst: print("Camino parcial: "+str(P));
-		
-		# Dar vuelta a la lista de vértices ue para almacenar en orden correcto los UE
-		self.ue.reverse();
-		
-		# Extender el camino hacia la dirección de R2
-		vf = self.simple_path_next(G, self.R2, V, tst);
-		while(not vf == self.R2):
-			self.R2 = vf;
-			P.appendleft(self.R2);
-			vf = self.simple_path_next(G, self.R2, V, tst);
-		
-		# Determinar R2 definitivo
-		self.R2 = vf;
-		if o.contains(self.ue, self.R2): self.ue.remove(self.R2);
-		
-		# Dar vuelta a la lista de vértices ue, para encajar con R1 y R2
-		self.ue.reverse();
-		
-		# Imprimir camino calculado
-		if tst: print("Camino calculado: "+str(P));
-		
-		# Determinar los tipos para los vértices no visitados
-		for v in V:
-			count = 0;	# Contador de vecinos UE
-			
-			# Contar los vecinos UE de v
-			for u in self.ue:
-				if G.get_edge(v, u) > 0:
-					count += 1;
-					
-			# Decidir sobre v
-			if count > 1: 
-				if tst: print(str(v)+" es francés.");
-				self.france.append(v);
-			elif count == 1:
-				if tst: print(str(v)+" es peninsular o francés.");
-				self.peninsular.append(v);
-			else:
-				if tst: print(str(v)+" Puede ser cualquier tipo.");
-				self.uk.append(v);
-		
-		# Imprimir tipos de vértice.
-		if tst:
-			print("R1: "+str(self.R1));
-			print("R2: "+str(self.R2));
-			print("U: "+str(self.ue));
-			print("F: "+str(self.france));
-			print("F/P: "+str(self.peninsular));
-			print("F/P/E: "+str(self.uk));
+		# Recorrer el arreglo, cambiar el mínimo si es necesario
+		for x in arr:
+			if x < min: min = x;
+		return min;
 	
-	# Cálculo de cotas inferiores para caminos peninsulares/franco-españoles
-	def pen_path(self, G, tst = False):
+	# Devolver el elemento máximo
+	def max(self, arr):
 		
-		# No borrar los cálculos del camino previo
-		prev_R1 = self.R1;
-		prev_R2 = self.R2;
-		prev_ue = self.ue;
-		prev_france = self.france;
-		prev_peninsular = self.peninsular;
-		prev_uk = self.uk;
+		# No hacer nada si el arreglo es vacío
+		if arr == []: return None;
 		
-		per = prev_france + prev_peninsular + prev_uk; # Periferias
+		max = arr[0]; # Elemento máximo
 		
-		# Agregar subgrafo de periferias
-		G.add_sub(per, 'periferias');
-		if tst: print("Periferias: ",G.get_sub('periferias'));
-		
-		# Hacer el cálculo para todos los vértices de la periferia
-		for i in range(len(per)):
-			
-			# Calcular un camino simple desde v en el grafo de periferias
-			self.simple_path(G.get_subgraph('periferias'), i);
-			
-			# Trabajar resultados con las etiquetas que corresponden
-			v = self.res_sub([i],per)[0];
-			ue = self.res_sub(self.ue,per);
-			R1 = self.res_sub([self.R1],per)[0];
-			R2 = self.res_sub([self.R2],per)[0];
-			
-			# Imprimir camino peninsular/franco-español de cada vértice
-			if R1 == R2:
-				print(v, ' tiene un cfe de, al menos, ',len(ue));
-				print('Camino simple: ',[R2]+ue);
-			else:
-				print(v, ' tiene un cfe de, al menos, ',len(ue)+1);
-				print('Camino simple: ',[R2]+ue+[R1]);
-			
-		# Borrar el subgrafo de periferias
-		G.del_sub('periferias');
-		if tst: print("Periferias: ",G.get_sub('periferias'));
-		
-		# Dejar como antes los cálculos del camino anterior
-		self.R1 = prev_R1;
-		self.R2 = prev_R2;
-		self.ue = prev_ue;
-		self.france = prev_france;
-		self.peninsular = prev_peninsular;
-		self.uk = prev_uk;
+		# Recorrer el arreglo, cambiar el máximo si es necesario
+		for x in arr:
+			if x > max: max = x;
+		return max;
 
 # Vértice visual
 class VertexCanvas(Widget):
@@ -1119,14 +904,14 @@ class GraphCanvas(Widget):
 		self.num_subs = len(subpanel.Sub);
 		
 		# Imprimir salida de funciones
-		toolbar.out(self.out + self.print_log());
+		toolbar.out(self.print_log() + self.out);
 		
 		# Redibujar
 		self.draw(self.G);
 	
 	# Impresión de logs
 	def print_log(self):
-		msg = '\n';
+		msg = '';
 		
 		# Info. subgrafos
 		msg += 'subgrafos en memoria: '+str(self.G.subgraphs);
@@ -1154,7 +939,8 @@ class GraphCanvas(Widget):
 			else:	msg += ' está en el complemento.';
 			msg += '\n Otro clic para invertir la arista';
 		else: msg += '-';
-			
+		msg += '\n';
+		
 		return msg;
 	
 	# Valores iniciales del lienzo
@@ -1475,94 +1261,6 @@ class GraphCanvas(Widget):
 		for i in range(len(self.V)):
 			self.V[vec[i]].pos_set(pos[i][0], pos[i][1]);
 	
-	# Algoritmo camino simple sobre la vista actual, desde el primer vértice
-	def simple_path(self):
-		
-		Sub_G = self.G.get_subgraph(self.view_name); # Subgrafo seleccionado
-		
-		# Calcular un camino simple, desde el primer vértice.
-		self.C.simple_path(Sub_G, 0);
-		
-		# Obtener resultados de la calculadora
-		r1 = self.view_V[self.C.R1]; # Ruso 1
-		r2 = self.view_V[self.C.R2]; # Ruso 2
-		ue = self.C.res_sub(self.C.ue, self.view_V); # Vértices UE
-		france = self.C.res_sub(self.C.france, self.view_V); # Vértices F
-		peninsular = self.C.res_sub(self.C.peninsular, self.view_V); # F/P
-		uk = self.C.res_sub(self.C.uk, self.view_V); # F/P/I
-		included = [r2]+ue+[r1]+france+peninsular+uk; # Vista actual
-		excluded = []; # Vértices que no pertenecen a la vista actual
-		
-		# Reunir los vértices que no pertenecen a la vista actual
-		for v in self.V:
-			if not o.contains(included, v.id): excluded.append(v.id);
-		
-		# Eliminar vértice ruso duplicado, si lo hay.
-		if r1 == r2: 
-			included.remove(r1);
-		
-		# Señalizar el camino
-		self.G.mark_path([r2]+ue+[r1]);
-		
-		# Cambiar etiquetas del grafo según el camino encontrado
-		self.lbl_change_sev(included+excluded);
-		
-		# Vaciar salida
-		self.out = '';
-		
-		# Reportar resultados
-		self.out += "Camino simple";
-		self.out += "\n R1 = "+ str(r1);
-		self.out += "\n R2 = "+ str(r2);
-		self.out += "\n EU = "+ str(ue);
-		self.out += "\n F = "+ str(france);
-		self.out += "\n P/F = "+ str(peninsular);
-		self.out += "\n I/P/F = "+ str(uk);
-	
-	# Algoritmo camino soble sobre la vista actual, que pase por el primer vértice
-	def double_path(self, tst = False):
-		
-		Sub_G = self.G.get_subgraph(self.view_name); # Subgrafo seleccionado
-		
-		# Calcular un camino doble, que pase por el primer vértice.
-		self.C.double_path(Sub_G, 0, tst);
-		
-		# Obtener resultados de la calculadora
-		r1 = self.view_V[self.C.R1]; # Ruso 1
-		r2 = self.view_V[self.C.R2]; # Ruso 2
-		ue = self.C.res_sub(self.C.ue, self.view_V); # Vértices UE
-		france = self.C.res_sub(self.C.france, self.view_V); # Vértices F
-		peninsular = self.C.res_sub(self.C.peninsular, self.view_V); # F/P
-		uk = self.C.res_sub(self.C.uk, self.view_V); # F/P/I
-		included = [r2]+ue+[r1]+france+peninsular+uk; # Vista actual
-		excluded = []; # Vértices que no pertenecen a la vista actual
-		
-		# Reunir los vértices que no pertenecen a la vista actual
-		for v in self.V:
-			if not o.contains(included, v.id): excluded.append(v.id);
-		
-		# Eliminar vértice ruso duplicado, si lo hay.
-		if r1 == r2: 
-			included.remove(r1);
-		
-		# Señalizar el camino
-		self.G.mark_path([r2]+ue+[r1]);
-		
-		# Cambiar etiquetas del grafo según el camino encontrado
-		self.lbl_change_sev(included+excluded);
-		
-		# Vaciar salida
-		self.out = '';
-		
-		# Reportar resultados
-		self.out += "Camino doble";
-		self.out += "\n R1 = "+ str(r1);
-		self.out += "\n R2 = "+ str(r2);
-		self.out += "\n EU = "+ str(ue);
-		self.out += "\n F = "+ str(france);
-		self.out += "\n P/F = "+ str(peninsular);
-		self.out += "\n I/P/F = "+ str(uk);
-	
 	# Calcular cliques y conjuntos independientes sobre el grafo actual
 	def calc_cliq_ind(self, subpanel, tst = False):
 		
@@ -1641,15 +1339,6 @@ class GraphCanvas(Widget):
 		
 		# Imprimir número de subconjuntos calculados
 		self.out = "Número de cliques: "+ str(len(cliq));
-	
-	# Calcular caminos periféricos
-	def periferia(self):
-		
-		# Indicar llamada a la función
-		print('<Periferias>');
-		
-		# Imprimir caminos peninsulares/franco-españoles calculados
-		self.C.pen_path(self.G, True);
 
 # Barra de herramientas
 class Toolbar(GridLayout):
@@ -1777,7 +1466,7 @@ class Toolbar(GridLayout):
 		# Crear un nuevo grafo del mismo número de vértices y hacer aleatorias sus aristas
 		G = Graph();
 		G.insert_Vertexes(len(GC.V));
-		G.rand_edges(.2);
+		G.rand_edges(.1);
 		
 		# Pasárselo al dibujante
 		GC.set_graph(G, subpanel, tst);
@@ -1817,12 +1506,12 @@ class Toolbar(GridLayout):
 		# Botón Camino simple
 		btn_path = Button(font_size='10', text='Camino simple', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
 		btn_path.bind(on_press=lambda x:GC.simple_path());
-		self.add_widget(btn_path);
+		#self.add_widget(btn_path);
 		
 		# Botón Camino doble
 		btn_path_2 = Button(font_size='10', text='Camino doble', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
 		btn_path_2.bind(on_press=lambda x:GC.double_path());
-		self.add_widget(btn_path_2);
+		#self.add_widget(btn_path_2);
 		
 		# Botón de calcular cliques
 		btn_cliq = Button(font_size='10', text="Cliques", size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
@@ -1834,10 +1523,10 @@ class Toolbar(GridLayout):
 		btn_cliq_ind.bind(on_press=lambda x:GC.calc_cliq_ind(subpanel, tst));
 		self.add_widget(btn_cliq_ind);
 		
-		# Botón de cálculo de caminos periféricos
-		btn_per = Button(font_size='10',text='Periferia', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
-		btn_per.bind(on_press=lambda x:GC.periferia());
-		self.add_widget(btn_per);
+		# Botón de cálculo completo del camino doble
+		btn_per = Button(font_size='10',text='Camino doble', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		#btn_per.bind(on_press=lambda x:GC.longest_path());
+		#self.add_widget(btn_per);
 		
 		# Botón de reinicio de posiciones
 		btn_res = Button(font_size='10',text='Reiniciar pos.', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
@@ -2201,7 +1890,7 @@ class MyKeyboardListener(Widget):
 		# Copiar el grafo trabajado al portapapeles al preisonar g
 		if keycode[1] == 'g':
 			print('graph copy');
-			self.toolbar.txt_out.text = str(self.GC.G.E.data);
+			self.toolbar.txt_out.text = str(self.GC.G.get_subgraph(self.GC.view_name).E.data);
 			self.toolbar.txt_out.copy(self.toolbar.txt_out.text);
 		
 		# Copiar el grafo del portapapeles al preisonar p
@@ -2222,7 +1911,7 @@ class GraphApp(App):
 		
 		# Preparar grafo inicial
 		G = Graph();
-		G.insert_Vertexes(18);
+		G.insert_Vertexes(30);
 		
 		# Widget raíz
 		root = GridLayout();
@@ -2249,7 +1938,7 @@ class GraphApp(App):
 		root.add_widget(key_mng);
 		
 		# Actualizar el contenido del lienzo con el grafo de la aplicación
-		Clock.schedule_interval(lambda x:graph_canvas.update(toolbar, subpanel, tst, G), 1.0 / 60.0);
+		Clock.schedule_interval(lambda x:graph_canvas.update(toolbar, subpanel, tst, G, 10), 1.0 / 60.0);
 		
 		return root;
 
