@@ -64,11 +64,17 @@ class ExMatrix:
 		self.columns = len(self.data[0]);
 	
 	# Imprimir matriz en consola
-	def print_matrix(self):
+	def print_matrix(self, out = False):
+	
+		out_str = ''; # Salida
 	
 		# Imprimir cada fila en una nueva línea
 		for i in range(len(self.data)):
-			print(self.data[i]);
+			if not out: print(self.data[i],'');
+			else: out_str += str(self.data[i]) + ' \n';
+		
+		# Devolver salida
+		return out_str;
 	
 	# Introducir dato en una fila/columna
 	def intro(self, datos, idx, idy):
@@ -128,21 +134,28 @@ class Graph:
 		print("edges = "+str(self.edges)+", vertices = "+str(self.vertices));
 	
 	# Imprimir matriz de adyacencia
-	def print_ady(self):
+	def print_ady(self, out = False):
+		
+		out_str = ''; # Salida
 		
 		# Señalar inicio de la impresión
-		print('<Adyacencia del grafo>');
+		if not out: print('<Adyacencia>');
+		else: out_str += '<Adyacencia>\n'; 
 		
 		# Avisar si el grafo no tiene vértices
 		if self.vertices == 0: 
-			print('Sin vértices');
+			if not out: print('Sin vértices');
+			else: out_str += 'Sin vértices.\n';
 			return;
 		
 		# Método de la ExMatrix
-		self.E.print_matrix();
+		out_str += self.E.print_matrix(out);
+		
+		# Exportar como texto
+		return out_str;
 	
 	# Establecer valor en la arista nm
-	def edge(self, n, m, val = 1):
+	def edge(self, n, m, val = 1, update = True):
 		
 		# Introducir valor bajo la diagonal, para poder reflejarlo
 		if n > m: self.E.intro(val, n, m);
@@ -151,8 +164,13 @@ class Graph:
 		# arista nm = arista mn
 		self.E.mirror();
 		
-		# Incrementar en 1 el núm. de aristas si la adyacencia no es de un vértice hacia sí mismo
-		if (not val == 0) and (not n == m): self.edges += 1;
+		# Actualizar el número de aristas
+		if update:
+			self.edges = 0;
+			for u in range(self.vertices):
+				for v in range(self.vertices):
+					if u > v:
+						if self.get_edge(u, v) > 0: self.edges += 1;
 	
 	# Agregar/eliminar un conjunto de aristas
 	def set_edges(self, arr, add = True):
@@ -194,14 +212,14 @@ class Graph:
 		self.V.append(self.vertices);
 		
 		# Hacer a un vértice adyacente a sí mismo
-		self.edge(self.vertices, self.vertices);
+		self.edge(self.vertices, self.vertices, 1, False);
 		
 		# Incrementar en 1 el núm. de vértices
 		self.vertices += 1;
 		
 		# Agregar el vértice sin adyacencia a ninún otro anterior a él
 		for i in range(self.vertices-1):
-			self.edge(self.vertices-1, i, 0);
+			self.edge(self.vertices-1, i, 0, False);
 		
 		# Agregarse/Actualizarse a sí mismo en la lista de subgrafos bajo el nombre de 'self'
 		self.add_sub(self.V, 'self');
@@ -228,6 +246,16 @@ class Graph:
 		for v in self.V:
 			v_c = (v + n) % self.vertices;	# vértice emparejado con v
 			self.edge(v_c, v);
+	
+	# Agregar un camino de n vértices
+	def path_n(self, n):
+	
+		# Continuar solo si n es un número posible del recorrido
+		if n > self.vertices or n < 0: return;
+		
+		# Agregar secuencialmente aristas
+		for i in range(n):
+			self.edge((i)%self.vertices, (i+1)%self.vertices);
 
 	# Imprmir todos los subgrafos almacenados (Conjuntos de vértices)
 	def print_subs(self):
@@ -358,11 +386,80 @@ class GraphCalc:
 		for k in self.found_cliques:
 			print(k);
 	
+	# Devolver el elemento mínimo
+	def min(self, arr):
+		
+		# No hacer nada si el arreglo es vacío
+		if arr == []: return None;
+		
+		min = arr[0]; # Elemento mínimo
+		
+		# Recorrer el arreglo, cambiar el mínimo si es necesario
+		for x in arr:
+			if x < min: min = x;
+		return min;
+	
+	# Devolver el elemento máximo
+	def max(self, arr):
+		
+		# No hacer nada si el arreglo es vacío
+		if arr == []: return None;
+		
+		max = arr[0]; # Elemento máximo
+		
+		# Recorrer el arreglo, cambiar el máximo si es necesario
+		for x in arr:
+			if x > max: max = x;
+		return max;
+	
+	# Combinaciones de k elementos tomados de n
+	def combinations(self, n, k, tst = False):
+	
+		combs = []; # Combinaciones
+		
+		# Caso base
+		if k == 0:
+			comb = '0'*n;
+			if tst: print(comb);
+			combs.append(comb);
+		if k == 1: 
+			for i in range(n):
+				comb = '0'*i+'1'+'0'*(n-i-1);
+				if tst: print(comb);
+				combs.append(comb);
+		
+		# Caso recursivo
+		if k > 1: 
+			
+			# Fijar la secuencia inicial y concatenar con otra combinación
+			for i in range(n-k+1):
+				
+				left = '0'*i+'1'; # Parte izquierda
+				right = self.combinations(n-i-1, k-1); # Partes derechas posibles
+				
+				# Concatenar con cada una
+				for r in right:
+					comb = left + r;
+					if tst: print(comb);
+					combs.append(comb);
+		
+		return combs;
+	
 	# Coeficiente binomial
-	def comb(self, n, k):
+	def binomial(self, n, k):
 		
 		# Devolver el valor entero
 		return int ( m.factorial(n) / ( m.factorial(k) * ( m.factorial(n - k) ) ) );
+
+	# Conjunto resta
+	def substract(self, A, B):
+		
+		R = []; # Resta
+		
+		# Recorrer cada vértice en A y verificar si está también en B
+		for v in A:
+			if not o.contains(B, v): R.append(v);
+		return R;
 
 	# Conjunto intersección
 	def intersection_set(self, A, B):
@@ -399,6 +496,28 @@ class GraphCalc:
 		if tst: print("vecinos de "+str(v)+": "+str(N)+" para un total de "+str(d));
 		
 		return d;
+	
+	# Orden de los vértices por grados
+	def deg_order(self, G, tst = False):
+		
+		k = 0; # Grado del vértice
+		L = []; # Orden de los vértices
+		V = G.V.copy(); # Vértices del grafo
+		
+		# Agregar vértice a vértice, según su grado
+		while(len(L) < len(G.V)):
+			if tst: print("L = ",L,", V = ",V);
+			for v in G.V:
+				if (o.contains(V, v)) and (self.degrees(v, G) == k):
+					if tst: print(v," está en V y tiene grado ",self.degrees(v, G));
+					L.append(v);
+					V.remove(v);
+			k += 1;
+		
+		# Imprimir orden
+		if tst: print("Orden por grados: ",L);
+		
+		return L;
 	
 	# Alg. Bron-Kerbosch para cliques maximales (forma básica)
 	def bron_kerbosch(self, G, P_arg, tst = False, R_arg = [], X_arg = [], lvl = 1):
@@ -452,7 +571,7 @@ class GraphCalc:
 			if tst: print("resulta en: P = "+str(P)+" y X = "+str(X));
 	
 	#Alg. Bron-Kerbosch para cliques maximales (mejorado con pivoting)
-	def bron_kerbosch_piv(self, G, P_arg, tst = False, R_arg = [], X_arg = [], lvl = 1):
+	def bron_kerbosch_piv(self, G, P_arg, stop_on = -1, tst = False, R_arg = [], X_arg = [], lvl = 1):
 		
 		'''
 		Con pivoting:
@@ -478,6 +597,11 @@ class GraphCalc:
 		# Guardar R como clique max. si P y X son vacíos
 		if P == [] and X == []:
 			self.found_cliques.append(R);
+		
+			# Parar el árbol de búsqueda si se ha encontrado un clique del tamaño solicitado
+			if stop_on > 0 and len(R) >= stop_on: 
+				if tst: print('Clique solicitado de tamaño',stop_on,' fue encontrado:');
+				return 'stop';
 		
 		# Escoger pivote del conjunto P U X, el de mayor grado
 		U = P + X;	# Unión
@@ -534,7 +658,12 @@ class GraphCalc:
 			if tst: print("vertice candidato: "+str(v)+" tiene vecinos "+str(Nv)+". P_Nv = "+str(P_int_Nv)+" y X_Nv = "+str(X_int_Nv));
 			
 			# Hacer la llamada recursiva
-			self.bron_kerbosch_piv(G, P_int_Nv, tst, R + [v], X_int_Nv, lvl+1);
+			son = self.bron_kerbosch_piv(G, P_int_Nv, stop_on, tst, R + [v], X_int_Nv, lvl+1);
+			
+			# Parar si un hijo ha detenido el árbol de búsqueda
+			if son == 'stop':
+				if tst: print('un hijo ha detenido el árbol');
+				return 'stop';
 			
 			# Imprimir traslación de v
 			if tst: print("movemos "+str(v)+" desde P = "+str(P)+" hasta X = "+str(X));
@@ -548,6 +677,8 @@ class GraphCalc:
 			
 			# Imprimir P y X después de la traslación
 			if tst: print("resulta en: P = "+str(P)+" y X = "+str(X));
+		
+		return 'go on';
 	
 	# Alg. Bron-Kerbosch para cliques maximales (forma básica)
 	def bron_kerbosch_basic(self, G, tst = False):
@@ -556,13 +687,13 @@ class GraphCalc:
 		self.bron_kerbosch(G, G.V, tst);
 	
 	# Alg. Bron-Kerbosch para cliques maximales (con pivoting)
-	def bron_kerbosch_pivot(self, G, tst = False):
+	def bron_kerbosch_pivot(self, G, stop_on = -1, tst = False):
 		
 		# Ejectutar el algoritmo con pivoting
-		self.bron_kerbosch_piv(G, G.V, tst);
+		self.bron_kerbosch_piv(G, G.V, stop_on, tst);
 	
 	# Alg. Bron-Kerbosch para cliques maximales (mejorado con un orden de degen.)
-	def bron_kerbosch_order(self, G, tst = False):
+	def bron_kerbosch_order(self, G, stop_on = -1, tst = False):
 	
 		'''
 		Con ordenamiento de vertices:
@@ -573,29 +704,7 @@ class GraphCalc:
 		P = self.matula_beck_deg_order(G, tst);
 		
 		# Ejectutar el algoritmo con pivoting
-		self.bron_kerbosch_piv(G, P, tst);
-	
-	# Orden de los vértices por grados
-	def deg_order(self, G, tst = False):
-		
-		k = 0; # Grado del vértice
-		L = []; # Orden de los vértices
-		V = G.V.copy(); # Vértices del grafo
-		
-		# Agregar vértice a vértice, según su grado
-		while(len(L) < len(G.V)):
-			if tst: print("L = ",L,", V = ",V);
-			for v in G.V:
-				if (o.contains(V, v)) and (self.degrees(v, G) == k):
-					if tst: print(v," está en V y tiene grado ",self.degrees(v, G));
-					L.append(v);
-					V.remove(v);
-			k += 1;
-		
-		# Imprimir orden
-		if tst: print("Orden por grados: ",L);
-		
-		return L;
+		self.bron_kerbosch_piv(G, P, stop_on, tst);
 	
 	# Alg. Matula-Beck para encontrar un orden de degeneración
 	def matula_beck_deg_order(self, G, tst = False):
@@ -670,32 +779,301 @@ class GraphCalc:
 		if tst: print("Orden de degeneración: L = "+str(L));
 		
 		return L;
-
-	# Devolver el elemento mínimo
-	def min(self, arr):
-		
-		# No hacer nada si el arreglo es vacío
-		if arr == []: return None;
-		
-		min = arr[0]; # Elemento mínimo
-		
-		# Recorrer el arreglo, cambiar el mínimo si es necesario
-		for x in arr:
-			if x < min: min = x;
-		return min;
 	
-	# Devolver el elemento máximo
-	def max(self, arr):
+	# Calcular vértices de grado impar
+	def deg_odd_vertexes(self, G, tst = False):
+	
+		odds = []; # Vértices de grado impar
 		
-		# No hacer nada si el arreglo es vacío
-		if arr == []: return None;
+		# Calcular grados
+		for v in G.V:
+			if self.degrees(v, G) % 2 > 0: odds.append(v);
 		
-		max = arr[0]; # Elemento máximo
+		# Imprimir vértices de grado impar
+		if tst: print('Vértices de grado impar:',odds);
 		
-		# Recorrer el arreglo, cambiar el máximo si es necesario
-		for x in arr:
-			if x > max: max = x;
-		return max;
+		return odds;
+	
+	# Saber si tiene camino euleriano
+	def hasEulerPath(self, G, tst = False):
+		
+		odd = len(self.deg_odd_vertexes(G)); # Número de vértices con grado impar
+		
+		# Decidir sobre G
+		if odd == 0 or odd == 2:
+			if tst:print('G tiene cam. Eul.');
+			return True;
+		else:
+			if tst:print('G no tiene cam. Eul.');
+			return False;
+	
+	# Saber si tiene ciclo euleriano
+	def hasEulerCicle(self, G, tst = False):
+		
+		odd = len(self.deg_odd_vertexes(G)); # Número de vértices con grado impar
+		
+		# Decidir sobre G
+		if odd == 0:
+			if tst: print('G tiene ciclo Eul.');
+			return True;
+		else:
+			if tst:print('G no tiene ciclo Eul.');
+			return False;
+	
+	# Calcular aristas prohibitivas
+	def prohibitives(self, G, Com, put_on_G = False):
+	
+		out = ''; # Salida de la función
+	
+		# Notficar la llamada
+		out += '<Prohibitivas>\n';
+		print('<Prohibitivas>');
+		
+		# Calcular aristas prohibidas en G
+		if not put_on_G:
+		
+			odds = self.deg_odd_vertexes(G); # Vértices de grado impar
+			cicle = False; # Hay un ciclo euleriano
+			
+			# Si G tiene un ciclo euleriano, todas las aristas libres están prohibidas
+			if len(odds) == 0: cicle = True;
+			
+			# Recorrer aristas libres
+			for u in G.V:
+				for v  in G.V:
+					if u > v:
+						e = G.get_edge(u, v); # Valor de la arista en G
+						e_c = Com.get_edge(u, v); # Valor de la arista en el comp.
+						hasOdds = o.contains(odds, u) or o.contains(odds, v); # Hay impares
+						
+						# Verificar si G tiene un ciclo euleriano
+						if cicle and e == 0 and e_c == 0:
+						
+							# Agregar al complemento
+							out += 'La arista ('+str(u)+','+str(v)+') no está en G.\n';
+							Com.edge(u, v);
+						
+						# Comprobar qué aristas libres inducen un vértice de grado par
+						if hasOdds and e == 0 and e_c == 0:
+							
+							# Agregar al complemento
+							out += 'La arista ('+str(u)+','+str(v)+') no está en G.\n';
+							Com.edge(u, v);
+		
+		# Calcular aristas prohibidas en Com
+		else:
+			
+			# Comprobar qué aristas que no están en G ni en Com inducen un Ind4
+			for u in Com.V:
+				for v  in Com.V:
+					if u > v:
+						
+						e_g = G.get_edge(u, v);	# Valor de la arista en G
+						e_c = Com.get_edge(u, v);	# Valor de la arista en Com
+						
+						# Continuar si la arista está libre
+						if e_g == 0 and e_c == 0:
+							
+							# Agregar la arista a Com, temporalmente
+							#out += '\nComprobando si ('+str(u)+','+str(v)+') induce un Ind4...';
+							Com.edge(u, v);
+							
+							# Buscar un 4-clique en Com (complemento en construcción)
+							self.bron_kerbosch_order(Com, 4);
+							
+							# Imprimir los cliques de Com (Ind's) encontrados
+							#out += '\nIndependientes:' + str(self.found_cliques) + '\n';
+							
+							# Prohibir la arista en caso de que induzca un 4-clique en Com
+							for c in self.found_cliques:
+								if len(c) >= 4:
+								
+									# Agregar a G
+									out += 'La arista ('+str(u)+','+str(v)+') está en G.\n';
+									G.edge(u, v);
+									break;
+							
+							# Quitar la arista temporal de Com
+							Com.edge(u, v, 0);
+		
+		# Devolver salida
+		return out;
+	
+	# Refutar tamaño máximo asumido de un camino
+	def refuse_size(self, size, current_size, G, Com):
+	
+		out = ''; # Salida de la función
+	
+		# Si el tamaño de camino actual es igual al máximo permitido, decidir las aristas
+		if size == current_size:
+		
+			# Repetir hasta que las aristas de G más las de Com sean igual al total
+			while(G.edges + Com.edges < self.binomial(G.vertices, 2)):
+				
+				# Calcular aristas prohibidas de G
+				out += self.prohibitives(G, Com);
+				
+				# Monitorear el número de aristas decididas
+				out += 'Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
+				
+				# Buscar un 4-clique en Com (complemento en construcción)
+				self.bron_kerbosch_order(Com, 4);
+				
+				# Mostrar grafo sobre el que se ensaya
+				out += '<Grafo>\n' + G.print_ady(True);
+				
+				# Mostrar complemento sobre el que se ensaya
+				out += '<Complemento>\n' + Com.print_ady(True);
+				
+				# Imprimir los cliques de Com (Ind's) encontrados
+				out += 'Independientes:' + str(self.found_cliques) + '\n';
+				
+				# Continuar la constr. solo si no se encontró un 4-clique en Com
+				for c in self.found_cliques:
+					if len(c) >= 4:
+						out += 'G tiene un Ind4:'+str(c)+'\n';
+						return out;
+				
+				# Calcular aristas prohibidas de Com
+				out += self.prohibitives(G, Com, True);
+				
+				# Monitorear el número de aristas decididas
+				
+				out += 'Aristas decididas: ' + str(G.edges) + ' + ' + str(Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
+				
+				# Buscar un 3-clique en G
+				self.bron_kerbosch_order(G, 3);
+				
+				# Mostrar grafo sobre el que se ensaya
+				out += '<Grafo>\n' + G.print_ady(True);
+				
+				# Mostrar complemento sobre el que se ensaya
+				out += '<Complemento>\n' + Com.print_ady(True);
+				
+				# Imprimir los cliques de G encontrados
+				out += 'Cliques:' + str(self.found_cliques) + '\n';
+				
+				# Continuar la constr. solo si no se encontró un 3-clique en G
+				for c in self.found_cliques:
+					if len(c) >= 3:
+						out += 'G tiene un K3:'+str(c)+'\n';
+						return out;
+		
+		# De lo contrario, construir una cadena conveniente de suposiciones
+		else:
+			
+			# Notificar acción
+			out += '<Cadena de suposiciones>\n';
+			print('<Cadena de suposiciones>');
+			
+			# Buscar un Ind >= 4 en G para construir la cadena de suposiciones
+			self.bron_kerbosch_order(G.get_complement(), 4);
+			
+			ind = []; # Conjunto independiente de la cadena
+			
+			# Obtener un Ind4 de un Ind>4, si es el caso.
+			for c in self.found_cliques:
+				if len(c) >= 4: ind = c[0:4];
+			
+			# Informar sobre el conjunto independiente empleado
+			out += 'Vértices partícipes en la cadena:'+str(ind)+'\n';
+			
+			# Iterar las suposiciones, negar cada una de ellas
+			for u in ind:
+				for v in ind:
+					if u > v:
+						
+						# Si la arista ya está en el complemento, pasar a la sig. sup.
+						if Com.get_edge(u, v) > 0:
+							out += '<Sabemos que ('+str(u)+','+str(v)+') no está en G>\n';
+						
+						# De lo contrario, negar la suposición
+						else:
+							out += '<Supongamos que ('+str(u)+','+str(v)+') está en G>\n';
+							
+							odds = self.deg_odd_vertexes(G); # Vértices de grado impar
+							hasOdds = o.contains(odds, u) or o.contains(odds, v); # Hay impares
+							hasCicle = self.hasEulerCicle(G); # Hay ciclo euleriano
+							
+							# Recalcular cota para el tamaño del camino actual
+							if hasOdds: out += 'Se conectó un vértice que era impar.\n';
+							if hasCicle: out += 'G tiene un ciclo euleriano.\n';
+							sup_size = current_size; # Tamaño después del supuesto
+							
+							# Aumentar en 1 el tamaño actual si es el caso
+							if hasOdds or hasCicle:
+								sup_size += 1;
+								out += 'Entonces, hay un camino de tamaño '+str(sup_size)+'\n';
+							
+							# Memorizar el estado previo a la suposición
+							G_current = Graph();
+							G_current.insert_Vertexes(G.vertices);
+							G_current.copy_inv_other_s_edges(G);
+							Com_current = Graph();
+							Com_current.insert_Vertexes(Com.vertices);
+							Com_current.copy_inv_other_s_edges(Com);
+							
+							# Agregar arista a G
+							G.edge(u, v);
+							
+							# Mostrar grafo sobre el que se ensaya
+							out += '<Grafo>\n' + G.print_ady(True);
+							
+							# Negar la suposición
+							out += self.refuse_size(size, sup_size, G, Com);
+							out += 'Por lo cual, ('+str(u)+','+str(v)+') no está en G.\n';
+							
+							# Retirar la suposición para pasar a la siguiente
+							G = G_current;
+							Com = Com_current;
+							
+							# Agregar arista al complemento
+							Com.edge(u, v);
+							
+							# Mostrar complemento sobre el que se ensaya
+							out += '<Complemento>\n' + Com.print_ady(True);
+			
+			# Concluir una contradicción producto de las previas negaciones.
+			out += 'Luego, G tiene un Ind4:'+str(ind)+'\n';
+		
+		# Devolver salida
+		return out;
+	
+	# Análisis del número de Ramsey asumiendo un cam. Ham.
+	def ramsey_ham(self, G, out = ''):
+		
+		size = G.vertices-1; # Tamaño del camino maximo
+		Com = None; # Grafo complemento
+		
+		# Notificar llamada a la función
+		out += '<Prototipo Ramsey>\n';
+		
+		# Realizar hasta que el camino máximo sea asumido como euleriano
+		while(size <= self.binomial(G.vertices,2)):
+		#while(size <= G.vertices):
+			
+			# Reiniciar grafo complemento
+			Com = Graph();
+			Com.insert_Vertexes(G.vertices);
+			
+			# Reiniciar G, asumir un camino hamiltoniano
+			G = Graph();
+			G.insert_Vertexes(Com.vertices);
+			G.path_n(G.vertices-1);
+			current_size = G.vertices-1; # Máximo tamaño confirmado de un cam.
+			
+			# Notificar paso
+			out += '\n<Asumir que el tamaño de un camino es, a lo sumo, de '+str(size)+'>\n';
+			print('<Asumir que el tamaño de un camino es, a lo sumo, de '+str(size)+'>');
+			
+			# Refutar tamaño asumido
+			out += self.refuse_size(size, current_size, G, Com);
+			
+			# Pasar al siguiente tamaño
+			size += 1;
+		
+		# Ver el complemento construido al terminar el proceso
+		return {'out':out, 'complement':Com};
 
 # Vértice visual
 class VertexCanvas(Widget):
@@ -913,26 +1291,30 @@ class GraphCanvas(Widget):
 	def print_log(self):
 		msg = '';
 		
+		# Info. general
+		msg += '\nVértices: '+str(self.G.vertices);
+		msg += '\nAristas: '+str(self.G.edges);
+		
 		# Info. subgrafos
-		msg += 'subgrafos en memoria: '+str(self.G.subgraphs);
-		msg += '\n subgrafos en panel: '+str(self.num_subs);
-		msg += '\n subgrafo actual: '+str(self.view_name);
+		msg += '\nSubgrafos en memoria: '+str(self.G.subgraphs);
+		msg += '\nSubgrafos en panel: '+str(self.num_subs);
+		msg += '\nSubgrafo actual: '+str(self.view_name);
 		
 		# Notificar si la función de subgrafos está activa
-		if self.set_sub: msg += '\n Escoger vértices del nuevo subgrafo.';
+		if self.set_sub: msg += '\nEscoger vértices del nuevo subgrafo.';
 		
 		# Info. del vértice 1
-		msg += '\n vértice 1: ';
+		msg += '\nVértice 1: ';
 		if not self.mark == -1: msg += str(self.mark);
 		else: msg += '-';
 		
 		# Info. del vértice 2
-		msg += '\n vértice 2: ';
+		msg += '\nVértice 2: ';
 		if not self.mark == -1: msg += str(self.end);
 		else: msg += '-';
 		
 		# Info. de la arista
-		msg += '\n arista: ';
+		msg += '\nArista: ';
 		if not (self.mark == -1 or self.end == -1):
 			msg += str(self.mark)+str(self.end);
 			if self.edge_on_G:	msg += ' está en el grafo.';
@@ -1339,6 +1721,21 @@ class GraphCanvas(Widget):
 		
 		# Imprimir número de subconjuntos calculados
 		self.out = "Número de cliques: "+ str(len(cliq));
+	
+	# Análisis del número de Ramsey, asumiendo un ciclo hamiltoniano
+	def ramsey_ham(self, subpanel):
+		
+		# Prototipo del algoritmo Ramsey asumiendo un ciclo hamiltoniano
+		ramsey = self.C.ramsey_ham(self.G);
+		
+		# Copiar la salida al portapapeles
+		with self.canvas:
+			txt_aux = TextInput(multiline=True);
+			txt_aux.text = ramsey['out'];
+			txt_aux.copy(txt_aux.text);
+		
+		# Dibujar el complemento
+		self.set_graph(ramsey['complement'], subpanel);
 
 # Barra de herramientas
 class Toolbar(GridLayout):
@@ -1363,7 +1760,7 @@ class Toolbar(GridLayout):
 		txt.text = '';
 
 	# Solicitar al dibujante crear un subgrafo
-	def subgraph_definition(self, GC, subpanel, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, txt_in, confirm, tst = False):
+	def subgraph_definition(self, GC, subpanel, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, txt_in, confirm, tst = False):
 	
 		# Imprimir un separador para monitorizar las acciones del botón y el checkbox
 		if tst: print("------.");
@@ -1397,10 +1794,10 @@ class Toolbar(GridLayout):
 					print("Es un invitado, insultarlo.");
 		
 		# Manipular la barra según se entre/salga de la función de subgrafos
-		self.subgraph_buttons(GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, txt_in, tst);
+		self.subgraph_buttons(GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, txt_in, tst);
 
 	# Mostrar/Ocultar herramientas
-	def subgraph_buttons(self, GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, txt_in, tst = False):
+	def subgraph_buttons(self, GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, txt_in, tst = False):
 		
 		# Activar/Desactivar botones de otras funciones
 		btn_ran.disabled = value;
@@ -1409,6 +1806,7 @@ class Toolbar(GridLayout):
 		btn_cliq.disabled = value;
 		btn_cliq_ind.disabled = value;
 		btn_per.disabled = value;
+		btn_eul.disabled = value;
 		
 		# Cambiar proósito de la entrada de texto
 		if value: txt_in.hint_text = 'Sel. subgrafo';
@@ -1466,7 +1864,7 @@ class Toolbar(GridLayout):
 		# Crear un nuevo grafo del mismo número de vértices y hacer aleatorias sus aristas
 		G = Graph();
 		G.insert_Vertexes(len(GC.V));
-		G.rand_edges(.1);
+		G.rand_edges(.3);
 		
 		# Pasárselo al dibujante
 		GC.set_graph(G, subpanel, tst);
@@ -1503,6 +1901,11 @@ class Toolbar(GridLayout):
 		self.add_widget(lbl_com);
 		self.add_widget(checkbox_c);
 		
+		# Botón del análisis Ramsey-Hamiton
+		btn_eul = Button(font_size='10', text='Ramsey-Ham', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		btn_eul.bind(on_press=lambda x:GC.ramsey_ham(subpanel));
+		self.add_widget(btn_eul);
+		
 		# Botón Camino simple
 		btn_path = Button(font_size='10', text='Camino simple', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
 		btn_path.bind(on_press=lambda x:GC.simple_path());
@@ -1537,8 +1940,8 @@ class Toolbar(GridLayout):
 		lbl_sub = Label(font_size='10', text='Definir subgrafo', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
 		btn_sub = Button(font_size='10', text='Confirm. subgrafo', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100, disabled=True);
 		checkbox_sub = CheckBox(size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100, active=False, color=(0,1,1));
-		btn_sub.bind(on_press=lambda x:self.subgraph_definition(GC, subpanel, False, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, self.txt_in, True));
-		checkbox_sub.bind(active=lambda x,y:self.subgraph_definition(GC, subpanel, checkbox_sub.active, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, self.txt_in, False));
+		btn_sub.bind(on_press=lambda x:self.subgraph_definition(GC, subpanel, False, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, self.txt_in, True));
+		checkbox_sub.bind(active=lambda x,y:self.subgraph_definition(GC, subpanel, checkbox_sub.active, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, self.txt_in, False));
 		self.add_widget(lbl_sub);
 		self.add_widget(checkbox_sub);
 		
@@ -1835,6 +2238,8 @@ class MyKeyboardListener(Widget):
 		# Crear un grafo nuevo
 		G = Graph();
 		
+		print(len(l));
+		
 		# Insetar los vértices (raíz cuadrada del área)
 		G.insert_Vertexes(int(m.sqrt(len(l))));
 		
@@ -1911,7 +2316,7 @@ class GraphApp(App):
 		
 		# Preparar grafo inicial
 		G = Graph();
-		G.insert_Vertexes(30);
+		G.insert_Vertexes(7);
 		
 		# Widget raíz
 		root = GridLayout();
