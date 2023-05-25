@@ -821,9 +821,10 @@ class GraphCalc:
 			return False;
 	
 	# Calcular aristas prohibitivas
-	def prohibitives(self, G, Com, put_on_G = False):
+	def prohibitives(self, size, current_size, G, Com, put_on_G = False):
 	
 		out = ''; # Salida de la función
+		prohib = []; # Aristas prohibidas
 	
 		# Notficar la llamada
 		out += '<Prohibitivas>\n';
@@ -834,11 +835,13 @@ class GraphCalc:
 		
 			odds = self.deg_odd_vertexes(G); # Vértices de grado impar
 			cicle = False; # Hay un ciclo euleriano
+			top = False; # El tamaño está al tope
 			
-			# Si G tiene un ciclo euleriano, todas las aristas libres están prohibidas
+			# Determinar condiciones
+			if size == current_size: top = True;
 			if len(odds) == 0: cicle = True;
 			
-			# Recorrer aristas libres
+			# Prohibir aristas por razón del tamaño del camino
 			for u in G.V:
 				for v  in G.V:
 					if u > v:
@@ -846,19 +849,58 @@ class GraphCalc:
 						e_c = Com.get_edge(u, v); # Valor de la arista en el comp.
 						hasOdds = o.contains(odds, u) or o.contains(odds, v); # Hay impares
 						
-						# Verificar si G tiene un ciclo euleriano
-						if cicle and e == 0 and e_c == 0:
+						# Agregar si hay un ciclo euleriano
+						if cicle and top and e == 0 and e_c == 0:
 						
 							# Agregar al complemento
 							out += 'La arista ('+str(u)+','+str(v)+') no está en G.\n';
+							out += 'De lo contrario, G tendría un camino de tamaño '+str(current_size+1)+'.\n';
+							prohib.append([u,v]);
 							Com.edge(u, v);
 						
 						# Comprobar qué aristas libres inducen un vértice de grado par
-						if hasOdds and e == 0 and e_c == 0:
+						if hasOdds and top and e == 0 and e_c == 0:
 							
 							# Agregar al complemento
 							out += 'La arista ('+str(u)+','+str(v)+') no está en G.\n';
+							out += 'De lo contrario, G tendría un camino de tamaño '+str(current_size+1)+'.\n';
+							prohib.append([u,v]);
 							Com.edge(u, v);
+			
+			# Comprobar qué aristas que no están en G ni en Com inducen un K3
+			for u in Com.V:
+				for v  in Com.V:
+					if u > v:
+						
+						e_g = G.get_edge(u, v);	# Valor de la arista en G
+						e_c = Com.get_edge(u, v);	# Valor de la arista en Com
+						
+						# Continuar si la arista está libre
+						if e_g == 0 and e_c == 0:
+							
+							# Agregar la arista a G, temporalmente
+							#out += '\nComprobando si ('+str(u)+','+str(v)+') induce un Ind4...';
+							G.edge(u, v);
+							
+							# Buscar un 3-clique en G
+							self.bron_kerbosch_order(G, 3);
+							
+							# Imprimir los cliques de Com (Ind's) encontrados
+							#out += '\nIndependientes:' + str(self.found_cliques) + '\n';
+							
+							# Prohibir la arista en caso de que induzca un 3-clique en G
+							for c in self.found_cliques:
+								if len(c) >= 3:
+								
+									# Agregar a Com
+									out += 'La arista ('+str(u)+','+str(v)+') no está en G.\n';
+									out += 'De lo contrario, G tendría K3.\n';
+									prohib.append([u,v]);
+									Com.edge(u, v);
+									break;
+							
+							# Quitar la arista temporal de G
+							G.edge(u, v, 0);
 		
 		# Calcular aristas prohibidas en Com
 		else:
@@ -890,154 +932,167 @@ class GraphCalc:
 								
 									# Agregar a G
 									out += 'La arista ('+str(u)+','+str(v)+') está en G.\n';
+									out += 'De lo contrario, G tendría Ind4.\n';
+									prohib.append([u,v]);
 									G.edge(u, v);
 									break;
 							
 							# Quitar la arista temporal de Com
 							Com.edge(u, v, 0);
 		
-		# Devolver salida
-		return out;
+		# Devolver diccionario
+		return {'out': out, 'prohib': prohib};
 	
 	# Refutar tamaño máximo asumido de un camino
 	def refuse_size(self, size, current_size, G, Com):
 	
-		out = ''; # Salida de la función
-	
-		# Si el tamaño de camino actual es igual al máximo permitido, decidir las aristas
-		if size == current_size:
+		bucle = {'out' : '', 'prohib' : ['-']}; # Datos de la fase de bucle
 		
-			# Repetir hasta que las aristas de G más las de Com sean igual al total
-			while(G.edges + Com.edges < self.binomial(G.vertices, 2)):
-				
-				# Calcular aristas prohibidas de G
-				out += self.prohibitives(G, Com);
-				
-				# Monitorear el número de aristas decididas
-				out += 'Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
-				
-				# Buscar un 4-clique en Com (complemento en construcción)
-				self.bron_kerbosch_order(Com, 4);
-				
-				# Mostrar grafo sobre el que se ensaya
-				out += '<Grafo>\n' + G.print_ady(True);
-				
-				# Mostrar complemento sobre el que se ensaya
-				out += '<Complemento>\n' + Com.print_ady(True);
-				
-				# Imprimir los cliques de Com (Ind's) encontrados
-				out += 'Independientes:' + str(self.found_cliques) + '\n';
-				
-				# Continuar la constr. solo si no se encontró un 4-clique en Com
-				for c in self.found_cliques:
-					if len(c) >= 4:
-						out += 'G tiene un Ind4:'+str(c)+'\n';
-						return out;
-				
-				# Calcular aristas prohibidas de Com
-				out += self.prohibitives(G, Com, True);
-				
-				# Monitorear el número de aristas decididas
-				
-				out += 'Aristas decididas: ' + str(G.edges) + ' + ' + str(Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
-				
-				# Buscar un 3-clique en G
-				self.bron_kerbosch_order(G, 3);
-				
-				# Mostrar grafo sobre el que se ensaya
-				out += '<Grafo>\n' + G.print_ady(True);
-				
-				# Mostrar complemento sobre el que se ensaya
-				out += '<Complemento>\n' + Com.print_ady(True);
-				
-				# Imprimir los cliques de G encontrados
-				out += 'Cliques:' + str(self.found_cliques) + '\n';
-				
-				# Continuar la constr. solo si no se encontró un 3-clique en G
-				for c in self.found_cliques:
-					if len(c) >= 3:
-						out += 'G tiene un K3:'+str(c)+'\n';
-						return out;
-		
-		# De lo contrario, construir una cadena conveniente de suposiciones
-		else:
+		# Repetir hasta que terminen las aristas libres o las prohibidas
+		while((G.edges + Com.edges < self.binomial(G.vertices, 2)) and (not bucle['prohib'] == [])):
 			
-			# Notificar acción
-			out += '<Cadena de suposiciones>\n';
-			print('<Cadena de suposiciones>');
+			# Calcular aristas prohibidas de G
+			prohibitives = self.prohibitives(size, current_size, G, Com);
+			bucle['out'] += prohibitives['out'];
+			bucle['prohib'] = prohibitives['prohib'];
 			
-			# Buscar un Ind >= 4 en G para construir la cadena de suposiciones
-			self.bron_kerbosch_order(G.get_complement(), 4);
+			# Monitorear el número de aristas decididas
+			bucle['out'] += 'Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
 			
-			ind = []; # Conjunto independiente de la cadena
+			# Buscar un 4-clique en Com (complemento en construcción)
+			self.bron_kerbosch_order(Com, 4);
 			
-			# Obtener un Ind4 de un Ind>4, si es el caso.
+			# Mostrar grafo/complemento sobre los que se ensaya
+			bucle['out'] += '<Grafo>\n' + G.print_ady(True);
+			bucle['out'] += '<Complemento>\n' + Com.print_ady(True);
+			
+			# Imprimir los cliques de Com (Ind's) encontrados
+			bucle['out'] += 'Independientes:' + str(self.found_cliques) + '\n';
+			
+			# Continuar la constr. solo si no se encontró un 4-clique en Com
 			for c in self.found_cliques:
-				if len(c) >= 4: ind = c[0:4];
+				if len(c) >= 4:
+					bucle['out'] += 'G tiene un Ind4:'+str(c)+'\n';
+					return bucle['out'];
 			
-			# Informar sobre el conjunto independiente empleado
-			out += 'Vértices partícipes en la cadena:'+str(ind)+'\n';
+			# Calcular aristas prohibidas de Com
+			prohibitives = self.prohibitives(size, current_size, G, Com, True);
+			bucle['out'] += prohibitives['out'];
+			bucle['prohib'] = prohibitives['prohib'];
 			
-			# Iterar las suposiciones, negar cada una de ellas
-			for u in ind:
-				for v in ind:
-					if u > v:
+			# Monitorear el número de aristas decididas
+			bucle['out'] += 'Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
+			
+			# Buscar un 3-clique en G
+			self.bron_kerbosch_order(G, 3);
+			
+			# Mostrar grafo/complemento sobre los que se ensaya
+			bucle['out'] += '<Grafo>\n' + G.print_ady(True);
+			bucle['out'] += '<Complemento>\n' + Com.print_ady(True);
+			
+			# Imprimir los cliques de G encontrados
+			bucle['out'] += 'Cliques:' + str(self.found_cliques) + '\n';
+			
+			# Continuar la constr. solo si no se encontró un 3-clique en G
+			for c in self.found_cliques:
+				if len(c) >= 3:
+					bucle['out'] += 'G tiene un K3:'+str(c)+'\n';
+					return bucle['out'];
+		
+		# Detener el árbol si se ha superado la fase de bucle sin aristas libres
+		if G.edges + Com.edges >= self.binomial(G.vertices, 2):
+			bucle['out'] = '$' + bucle['out'];
+			return bucle['out'];
+		
+		# Construir una cadena conveniente de suposiciones
+		bucle['out'] += '<Cadena de suposiciones>\n';
+		print('<Cadena de suposiciones>');
+		
+		# Buscar un Ind >= 4 en G para construir la cadena de suposiciones
+		self.bron_kerbosch_order(G.get_complement(), 4);
+		
+		ind = []; # Conjunto independiente de la cadena
+		
+		# Obtener un Ind4 de un Ind>4, si es el caso.
+		for c in self.found_cliques:
+			if len(c) >= 4: ind = c[0:4];
+			
+		# Detener el árbol si no existe tal Ind4
+		if ind == []:
+			bucle['out'] = '$' + bucle['out'];
+			return bucle['out'];
+		
+		# Informar sobre los vértices empleados
+		bucle['out'] += 'Vértices partícipes en la cadena:'+str(ind)+'\n';
+		
+		# Iterar las suposiciones, negar cada una de ellas
+		for u in ind:
+			for v in ind:
+				if u > v:
+					
+					# Si la arista ya está en el complemento, pasar a la sig. sup.
+					if Com.get_edge(u, v) > 0:
+						bucle['out'] += '<Sabemos que ('+str(u)+','+str(v)+') no está en G>\n';
 						
-						# Si la arista ya está en el complemento, pasar a la sig. sup.
-						if Com.get_edge(u, v) > 0:
-							out += '<Sabemos que ('+str(u)+','+str(v)+') no está en G>\n';
+					# De lo contrario, negar la suposición
+					else:
+						bucle['out'] += '<Supongamos que ('+str(u)+','+str(v)+') está en G>\n';
 						
-						# De lo contrario, negar la suposición
-						else:
-							out += '<Supongamos que ('+str(u)+','+str(v)+') está en G>\n';
+						odds = self.deg_odd_vertexes(G); # Vértices de grado impar
+						hasOdds = o.contains(odds, u) or o.contains(odds, v); # Hay impares
+						hasCicle = self.hasEulerCicle(G); # Hay ciclo euleriano
+						
+						# Recalcular cota para el tamaño del camino actual
+						if hasOdds: bucle['out'] += 'Se conectó un vértice que era impar.\n';
+						if hasCicle: bucle['out'] += 'G tiene un ciclo euleriano.\n';
+						sup_size = current_size; # Tamaño después del supuesto
+						
+						# Aumentar en 1 el tamaño actual si es el caso
+						if hasOdds or hasCicle:
+							sup_size += 1;
+							bucle['out'] += 'Entonces, hay un camino de tamaño '+str(sup_size)+' / '+str(size)+'\n';
 							
-							odds = self.deg_odd_vertexes(G); # Vértices de grado impar
-							hasOdds = o.contains(odds, u) or o.contains(odds, v); # Hay impares
-							hasCicle = self.hasEulerCicle(G); # Hay ciclo euleriano
+						# Memorizar el estado previo a la suposición
+						G_current = Graph();
+						G_current.insert_Vertexes(G.vertices);
+						G_current.copy_inv_other_s_edges(G);
+						Com_current = Graph();
+						Com_current.insert_Vertexes(Com.vertices);
+						Com_current.copy_inv_other_s_edges(Com);
+						
+						# Agregar arista a G
+						G.edge(u, v);
+						
+						# Mostrar grafo/complemento sobre los que se ensaya
+						bucle['out'] += '<Grafo>\n' + G.print_ady(True);
+						bucle['out'] += '<Complemento>\n' + Com.print_ady(True);
 							
-							# Recalcular cota para el tamaño del camino actual
-							if hasOdds: out += 'Se conectó un vértice que era impar.\n';
-							if hasCicle: out += 'G tiene un ciclo euleriano.\n';
-							sup_size = current_size; # Tamaño después del supuesto
-							
-							# Aumentar en 1 el tamaño actual si es el caso
-							if hasOdds or hasCicle:
-								sup_size += 1;
-								out += 'Entonces, hay un camino de tamaño '+str(sup_size)+'\n';
-							
-							# Memorizar el estado previo a la suposición
-							G_current = Graph();
-							G_current.insert_Vertexes(G.vertices);
-							G_current.copy_inv_other_s_edges(G);
-							Com_current = Graph();
-							Com_current.insert_Vertexes(Com.vertices);
-							Com_current.copy_inv_other_s_edges(Com);
-							
-							# Agregar arista a G
-							G.edge(u, v);
-							
-							# Mostrar grafo sobre el que se ensaya
-							out += '<Grafo>\n' + G.print_ady(True);
-							
-							# Negar la suposición
-							out += self.refuse_size(size, sup_size, G, Com);
-							out += 'Por lo cual, ('+str(u)+','+str(v)+') no está en G.\n';
-							
-							# Retirar la suposición para pasar a la siguiente
-							G = G_current;
-							Com = Com_current;
-							
-							# Agregar arista al complemento
-							Com.edge(u, v);
-							
-							# Mostrar complemento sobre el que se ensaya
-							out += '<Complemento>\n' + Com.print_ady(True);
+						# Hacer la suposición
+						bucle['out'] += self.refuse_size(size, sup_size, G, Com);
+						
+						# Verificar el criterio de parada
+						if o.contains(bucle['out'], '$'):
+							return bucle['out'];
 			
-			# Concluir una contradicción producto de las previas negaciones.
-			out += 'Luego, G tiene un Ind4:'+str(ind)+'\n';
+						# Negar la suposición
+						bucle['out'] += 'Por lo cual, ('+str(u)+','+str(v)+') no está en G.\n';
+							
+						# Retirar la suposición para pasar a la siguiente
+						G = G_current;
+						Com = Com_current;
+							
+						# Agregar arista al complemento
+						Com.edge(u, v);
+						
+						# Mostrar grafo/complemento sobre los que se ensaya
+						bucle['out'] += '<Grafo>\n' + G.print_ady(True);
+						bucle['out'] += '<Complemento>\n' + Com.print_ady(True);
+			
+		# Concluir una contradicción producto de las previas negaciones.
+		bucle['out'] += 'Luego, G tiene un Ind4:'+str(ind)+', una contradicción.\n';
 		
 		# Devolver salida
-		return out;
+		return bucle['out'];
 	
 	# Análisis del número de Ramsey asumiendo un cam. Ham.
 	def ramsey_ham(self, G, out = ''):
@@ -1050,7 +1105,6 @@ class GraphCalc:
 		
 		# Realizar hasta que el camino máximo sea asumido como euleriano
 		while(size <= self.binomial(G.vertices,2)):
-		#while(size <= G.vertices):
 			
 			# Reiniciar grafo complemento
 			Com = Graph();
@@ -1060,7 +1114,7 @@ class GraphCalc:
 			G = Graph();
 			G.insert_Vertexes(Com.vertices);
 			G.path_n(G.vertices-1);
-			current_size = G.vertices-1; # Máximo tamaño confirmado de un cam.
+			current_size = G.vertices-1; # Tamaño actual
 			
 			# Notificar paso
 			out += '\n<Asumir que el tamaño de un camino es, a lo sumo, de '+str(size)+'>\n';
@@ -1068,6 +1122,10 @@ class GraphCalc:
 			
 			# Refutar tamaño asumido
 			out += self.refuse_size(size, current_size, G, Com);
+			
+			# Verificar criterio de parada
+			if o.contains(out, '$'):
+				break;
 			
 			# Pasar al siguiente tamaño
 			size += 1;
@@ -1692,7 +1750,7 @@ class GraphCanvas(Widget):
 	def calc_cliq(self, subpanel, tst = False):
 		
 		# Calcular cliques maximales del subgrafo
-		self.C.bron_kerbosch_order(self.G);
+		self.C.bron_kerbosch_order(self.G, -1, tst);
 		
 		# Guardar conjuntos calculados
 		cliq = self.C.found_cliques;
@@ -1728,11 +1786,10 @@ class GraphCanvas(Widget):
 		# Prototipo del algoritmo Ramsey asumiendo un ciclo hamiltoniano
 		ramsey = self.C.ramsey_ham(self.G);
 		
-		# Copiar la salida al portapapeles
-		with self.canvas:
-			txt_aux = TextInput(multiline=True);
-			txt_aux.text = ramsey['out'];
-			txt_aux.copy(txt_aux.text);
+		# Guardar la salida
+		f = open("Calculadora.txt", "w");
+		f.write(ramsey['out']);
+		f.close();
 		
 		# Dibujar el complemento
 		self.set_graph(ramsey['complement'], subpanel);
@@ -1918,7 +1975,7 @@ class Toolbar(GridLayout):
 		
 		# Botón de calcular cliques
 		btn_cliq = Button(font_size='10', text="Cliques", size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
-		btn_cliq.bind(on_press=lambda x:GC.calc_cliq(subpanel, tst));
+		btn_cliq.bind(on_press=lambda x:GC.calc_cliq(subpanel, True));
 		self.add_widget(btn_cliq);
 		
 		# Botón de calcular cliques y conjuntos independientes
@@ -2316,7 +2373,7 @@ class GraphApp(App):
 		
 		# Preparar grafo inicial
 		G = Graph();
-		G.insert_Vertexes(7);
+		G.insert_Vertexes(9);
 		
 		# Widget raíz
 		root = GridLayout();
