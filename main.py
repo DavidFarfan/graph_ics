@@ -30,6 +30,7 @@ from kivy.app import App
 import random as r
 import operator as o
 import math as m
+import time as tm
 from collections import deque
 
 # Matriz expandible
@@ -829,8 +830,8 @@ class GraphCalc:
 			if tst:print('G no tiene ciclo Eul.');
 			return False;
 	
-	# Calcular aristas prohibitivas
-	def prohibitives(self, m, size, current_size, G, Com, put_on_G = False):
+	# Calcular aristas prohibitivas del algoritmo Ramsey-Ham
+	def prohibitives_euler_path(self, m, size, current_size, G, Com, put_on_G = False):
 	
 		out = ''; # Salida de la función
 		prohib = []; # Aristas prohibidas
@@ -975,7 +976,7 @@ class GraphCalc:
 		while((G.edges + Com.edges < self.binomial(G.vertices, 2)) and (not bucle['prohib'] == [])):
 			
 			# Calcular aristas prohibidas de G
-			prohibitives = self.prohibitives(m, size, current_size, G, Com);
+			prohibitives = self.prohibitives_euler_path(m, size, current_size, G, Com);
 			bucle['out'] += prohibitives['out'];
 			bucle['prohib'] = prohibitives['prohib'];
 			
@@ -999,7 +1000,7 @@ class GraphCalc:
 					return bucle['out'];
 			
 			# Calcular aristas prohibidas de Com
-			prohibitives = self.prohibitives(m, size, current_size, G, Com, True);
+			prohibitives = self.prohibitives_euler_path(m, size, current_size, G, Com, True);
 			bucle['out'] += prohibitives['out'];
 			bucle['prohib'] = prohibitives['prohib'];
 			
@@ -1127,12 +1128,19 @@ class GraphCalc:
 	# Análisis del número de Ramsey asumiendo un cam. Ham.
 	def ramsey_ham(self, G, out = ''):
 		
+		'''
+		Método, muy lento, para encontrar algunas pruebas R(n, m) > N
+		'''
+		
 		size = G.vertices-1; # Tamaño del camino maximo
 		Com = None; # Grafo complemento
 		m = 5; # Ind del número de Ramsey
 		
 		# Notificar llamada a la función
 		out += '<Prototipo Ramsey>\n';
+		
+		# Iniciar cronómetro
+		t_0 = tm.time();
 		
 		# Realizar hasta que el camino máximo sea asumido como euleriano
 		while(size <= self.binomial(G.vertices,2)):
@@ -1161,11 +1169,298 @@ class GraphCalc:
 			# Pasar al siguiente tamaño
 			size += 1;
 		
-		# Ver el complemento construido al terminar el proceso
+		# Imprimir tiempo transcurrido
+		print(tm.time() - t_0);
+		
+		# Ver el último complemento del proceso al terminar el proceso
 		return {'out':out, 'complement':Com};
+	
+	# Calcular aristas prohibitivas del algoritmo Ramsey-Plus
+	def prohibitives(self, m, G, Com, put_on_G = False):
+	
+		out = ''; # Salida de la función
+		prohib = []; # Aristas prohibidas
+	
+		# Notficar la llamada
+		out += '<Prohibitivas Plus>\n';
+		print('<Prohibitivas Plus>');
+		
+		# Calcular aristas prohibidas en G
+		if not put_on_G:
+			
+			# Comprobar qué aristas que no están en G ni en Com inducen un K3
+			for u in Com.V:
+				for v  in Com.V:
+					if u > v:
+						
+						e_g = G.get_edge(u, v);	# Valor de la arista en G
+						e_c = Com.get_edge(u, v);	# Valor de la arista en Com
+						
+						# Continuar si la arista está libre
+						if e_g == 0 and e_c == 0:
+							
+							# Agregar la arista a G, temporalmente
+							#out += '\nComprobando si ('+str(u)+','+str(v)+') induce un Indm...';
+							G.edge(u, v);
+							
+							# Buscar un 3-clique en G
+							self.bron_kerbosch_order(G, 3);
+							
+							# Imprimir los cliques de G
+							#out += '\nCliques:' + str(self.found_cliques) + '\n';
+							
+							# Prohibir la arista en caso de que induzca un 3-clique en G
+							for c in self.found_cliques:
+								if len(c) >= 3:
+								
+									# Agregar a Com
+									out += 'La arista ('+str(u)+','+str(v)+') no está en G.\n';
+									out += 'De lo contrario, G tendría K3.\n';
+									prohib.append([u,v]);
+									Com.edge(u, v);
+									break;
+							
+							# Quitar la arista temporal de G
+							G.edge(u, v, 0);
+		
+		# Calcular aristas prohibidas en Com
+		else:
+			
+			# Comprobar qué aristas que no están en G ni en Com inducen un Indm
+			for u in Com.V:
+				for v  in Com.V:
+					if u > v:
+						
+						e_g = G.get_edge(u, v);	# Valor de la arista en G
+						e_c = Com.get_edge(u, v);	# Valor de la arista en Com
+						
+						# Continuar si la arista está libre
+						if e_g == 0 and e_c == 0:
+							
+							# Agregar la arista a Com, temporalmente
+							#out += '\nComprobando si ('+str(u)+','+str(v)+') induce un Indm...';
+							Com.edge(u, v);
+							
+							# Buscar un m-clique en Com (complemento en construcción)
+							self.bron_kerbosch_order(Com, m);
+							
+							# Imprimir los cliques de Com (Ind's) encontrados
+							#out += '\nIndependientes:' + str(self.found_cliques) + '\n';
+							
+							# Prohibir la arista en caso de que induzca un m-clique en Com
+							for c in self.found_cliques:
+								if len(c) >= m:
+								
+									# Agregar a G
+									out += 'La arista ('+str(u)+','+str(v)+') está en G.\n';
+									out += 'De lo contrario, G tendría Ind'+str(m)+'.\n';
+									
+									prohib.append([u,v]);
+									G.edge(u, v);
+									break;
+							
+							# Quitar la arista temporal de Com
+							Com.edge(u, v, 0);
+		
+		# Devolver diccionario
+		return {'out': out, 'prohib': prohib};
+	
+	# Refutar pareja asumida
+	def refuse_ramsey_plus(self, m, G, Com, f):
+	
+		data = {'out' : '', 'prohib' : ['-']}; # Datos a devolver
+		
+		# Fase de bucle
+		while(not data['prohib'] == []):
+			
+			# Calcular aristas prohibidas de G
+			prohibitives = self.prohibitives(m, G, Com);
+			data['out'] += prohibitives['out'];
+			f.write(prohibitives['out']);
+			data['prohib'] = prohibitives['prohib'];
+			
+			# Monitorear el número de aristas decididas
+			data['out'] += 'Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
+			f.write('Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n');
+			
+			# Buscar un m-clique en Com (complemento en construcción)
+			self.bron_kerbosch_order(Com, m);
+			
+			# Mostrar grafo/complemento sobre los que se ensaya
+			data['out'] += '<Grafo>\n' + G.print_ady(True);
+			f.write('<Grafo>\n' + G.print_ady(True));
+			data['out'] += '<Complemento>\n' + Com.print_ady(True);
+			f.write('<Complemento>\n' + Com.print_ady(True));
+			
+			# Imprimir los cliques de Com (Ind's) encontrados
+			data['out'] += 'Independientes:' + str(self.found_cliques) + '\n';
+			f.write('Independientes:' + str(self.found_cliques) + '\n');
+			
+			# Continuar la constr. solo si no se encontró un m-clique en Com
+			for c in self.found_cliques:
+				if len(c) >= m:
+					data['out'] += 'G tiene un Ind'+str(m)+':'+str(c)+'\n';
+					f.write('G tiene un Ind'+str(m)+':'+str(c)+'\n');
+					return data['out'];
+			
+			# Calcular aristas prohibidas de Com
+			prohibitives = self.prohibitives(m, G, Com, True);
+			data['out'] += prohibitives['out'];
+			f.write(prohibitives['out']);
+			data['prohib'] = prohibitives['prohib'];
+			
+			# Monitorear el número de aristas decididas
+			data['out'] += 'Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
+			f.write('Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n');
+			
+			# Buscar un 3-clique en G
+			self.bron_kerbosch_order(G, 3);
+			
+			# Mostrar grafo/complemento sobre los que se ensaya
+			data['out'] += '<Grafo>\n' + G.print_ady(True);
+			f.write('<Grafo>\n' + G.print_ady(True));
+			data['out'] += '<Complemento>\n' + Com.print_ady(True);
+			f.write('<Complemento>\n' + Com.print_ady(True));
+			
+			# Imprimir los cliques de G encontrados
+			data['out'] += 'Cliques:' + str(self.found_cliques) + '\n';
+			f.write('Cliques:' + str(self.found_cliques) + '\n');
+			
+			# Continuar la constr. solo si no se encontró un 3-clique en G
+			for c in self.found_cliques:
+				if len(c) >= 3:
+					data['out'] += 'G tiene un K3:'+str(c)+'\n';
+					f.write('G tiene un K3:'+str(c)+'\n');
+					return data['out'];
+		
+		# Detener el árbol si se ha superado la fase de bucle sin aristas libres
+		if G.edges + Com.edges >= self.binomial(G.vertices, 2):
+			data['out'] = '$' + data['out'];
+			f.write('$');
+			return data['out'];
+		
+		# Construir una cadena conveniente de suposiciones
+		data['out'] += '<Cadena de suposiciones>\n';
+		f.write('<Cadena de suposiciones>\n');
+		print('<Cadena de suposiciones>');
+		
+		# Buscar un Ind >= m en G para construir la cadena de suposiciones
+		self.bron_kerbosch_order(G.get_complement(), m);
+		
+		ind = []; # Conjunto independiente de la cadena
+		
+		# Obtener un Indm de un Ind>m, si es el caso.
+		for c in self.found_cliques:
+			if len(c) >= m: ind = c[0:m];
+			
+		# Detener el árbol si no existe tal Indm
+		if ind == []:
+			data['out'] = '$' + data['out'];
+			f.write('$');
+			return data['out'];
+		
+		# Informar sobre los vértices empleados
+		data['out'] += 'Vértices partícipes en la cadena:'+str(ind)+'\n';
+		f.write('Vértices partícipes en la cadena:'+str(ind)+'\n');
+		
+		# Iterar las suposiciones, negar cada una de ellas
+		for u in ind:
+			for v in ind:
+				if u > v:
+					
+					# Si la arista ya está en el complemento, pasar a la sig. sup.
+					if Com.get_edge(u, v) > 0:
+						data['out'] += '<Sabemos que ('+str(u)+','+str(v)+') no está en G>\n';
+						f.write('<Sabemos que ('+str(u)+','+str(v)+') no está en G>\n');
+						
+					# De lo contrario, negar la suposición
+					else:
+						data['out'] += '<Supongamos que ('+str(u)+','+str(v)+') está en G>\n';
+						f.write('<Supongamos que ('+str(u)+','+str(v)+') está en G>\n');
+						
+						# Memorizar el estado previo a la suposición
+						G_current = Graph();
+						G_current.insert_Vertexes(G.vertices);
+						G_current.copy_inv_other_s_edges(G);
+						Com_current = Graph();
+						Com_current.insert_Vertexes(Com.vertices);
+						Com_current.copy_inv_other_s_edges(Com);
+						
+						# Agregar arista a G
+						G.edge(u, v);
+						
+						# Mostrar grafo/complemento sobre los que se ensaya
+						data['out'] += '<Grafo>\n' + G.print_ady(True);
+						f.write('<Grafo>\n' + G.print_ady(True));
+						data['out'] += '<Complemento>\n' + Com.print_ady(True);
+						f.write('<Complemento>\n' + Com.print_ady(True));
+							
+						# Negar la suposición, si es posible
+						recursive_call = self.refuse_ramsey_plus(m, G, Com, f);
+						data['out'] += recursive_call;
+						f.write(recursive_call);
+						
+						# Verificar el criterio de parada
+						if o.contains(data['out'], '$'):
+							return data['out'];
+						
+						# Negar la suposición
+						data['out'] += 'Por lo cual, ('+str(u)+','+str(v)+') no está en G.\n';
+						f.write('Por lo cual, ('+str(u)+','+str(v)+') no está en G.\n');
+							
+						# Retirar la suposición para pasar a la siguiente
+						G = G_current;
+						Com = Com_current;
+							
+						# Agregar arista al complemento
+						Com.edge(u, v);
+						
+						# Mostrar grafo/complemento sobre los que se ensaya
+						data['out'] += '<Grafo>\n' + G.print_ady(True);
+						f.write('<Grafo>\n' + G.print_ady(True));
+						data['out'] += '<Complemento>\n' + Com.print_ady(True);
+						f.write('<Complemento>\n' + Com.print_ady(True));
+			
+		# Concluir una contradicción producto de las previas negaciones.
+		data['out'] += 'Luego, G tiene un Ind'+str(m)+':'+str(ind)+', una contradicción.\n';
+		f.write('Luego, G tiene un Ind'+str(m)+':'+str(ind)+', una contradicción.\n');
+		
+		# Devolver salida
+		return data['out'];
+	
+	# Análisis del número de Ramsey, estructura comprobada
+	def ramsey_plus(self, proved_pair, f):
+		
+		'''
+		Otro método para encontrar pruebas de R(3,m)>N
+		'''
+		
+		Gp = proved_pair['Gp']; # Grafo probado
+		Com = proved_pair['Com']; # Complemento probado
+		m = 6; # Ind del número de Ramsey
+		
+		# Notificar llamada a la función
+		f.write('<Prototipo Ramsey Plus>\n');
+		
+		# Iniciar cronómetro
+		t_0 = tm.time();
+		
+		# Refutar la pereja asumida
+		self.refuse_ramsey_plus(m, Gp, Com, f);
+		
+		# Imprimir tiempo transcurrido
+		print(tm.time() - t_0);
+			
+		# Devolver el grafo construido al terminar el proceso
+		return Gp;
 	
 	# Ayudar a decidir la presencia de un Kn
 	def decide_Kn(self, G, n, tst = False):
+	
+		'''
+		Criterio, débil, para descartar (o proporcionar vértices candidatos)
+		de un K.
+		'''
 	
 		C = []; # Conjunto de candidatos
 		S = G.V.copy(); # Subconjunto de C
@@ -1985,29 +2280,38 @@ class GraphCanvas(Widget):
 		
 		f.close();
 	
+	# Análisis del número de Ramsey, algoritmo Ramsey-Plus
+	def ramsey_plus(self, subpanel):
+		
+		# Vaciar salida
+		f = open("Calculadora.txt", "w");
+		f.write('');
+		f.close();
+		
+		# Prototipo del algoritmo Ramsey (Ramsey-plus)
+		f = open("Calculadora.txt", "a");
+		
+		# Aportar par confirmado
+		G = Graph();
+		G.insert_Vertexes(self.G.vertices);
+		Com = Graph();
+		Com.insert_Vertexes(self.G.vertices);
+		
+		# Ejecutar algoritmo
+		ramsey = self.C.ramsey_plus( {'Gp':G, 'Com':Com}, f );
+		f.close();
+		
+		# Dibujar el último grafo del algoritmo
+		self.set_graph(ramsey, subpanel);
+	
 	# Función de desarrollo
 	def dev(self, subpanel):
 		
 		# Notificar entrada
 		print('<Desarrollo>');
 		
-		# Descarte de Kn
-		n = 4;
-		decide = self.C.decide_Kn(self.G, n);
-		
-		if not decide == []:
-			
-			# Reiniciar el panel de subgrafos
-			subpanel.setup(self);
-			
-			# Reiniciar vista
-			subpanel.display_subgraph(self, 'self');
-			
-			# Almacenar subgrafo
-			self.auto_add_subs([decide], ['SubG_K'+str(n)], subpanel);
-			
-			# Ordenar subgrafos en el panel
-			subpanel.sort_subs(self, True);
+		# Probar algoritmo Ramsey-Plus sin una pareja inicial
+		self.ramsey_plus(subpanel);
 
 # Barra de herramientas
 class Toolbar(GridLayout):
@@ -2181,7 +2485,7 @@ class Toolbar(GridLayout):
 		
 		# Botón del análisis Ramsey
 		btn_eul = Button(font_size='10', text='Ramsey', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
-		btn_eul.bind(on_press=lambda x:GC.ramsey_cicle(subpanel));
+		btn_eul.bind(on_press=lambda x:GC.ramsey_ham(subpanel));
 		self.add_widget(btn_eul);
 		
 		# Botón Camino simple
@@ -2592,7 +2896,7 @@ class GraphApp(App):
 		
 		# Preparar grafo inicial
 		G = Graph();
-		G.insert_Vertexes(40);
+		G.insert_Vertexes(16);
 		
 		# Widget raíz
 		root = GridLayout();
