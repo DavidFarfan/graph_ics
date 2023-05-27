@@ -84,6 +84,15 @@ class ExMatrix:
 		
 		# Introducir dato
 		self.data[idx][idy] = datos;
+	
+	# Introducir dato en una fila
+	def intro_row(self, datos, idx):
+	
+		# Expandir matriz lo suficiente
+		self.expand_matrix(idx, -1);
+		
+		# Introducir datos
+		self.data[idx] = datos;
 		
 	# Valores simetricos respecto a la diagonal, toma la mitad bajo la diagonal
 	def mirror(self):
@@ -372,8 +381,8 @@ class GraphCalc:
 		arr = []; # Resultado con etiquetas cambiadas
 		
 		# Cambiar etiquetas, una a una
-		for i in res:
-			arr.append(view_V[i]);
+		for e in res:
+			arr.append(view_V[e]);
 		return arr;
 	
 	# Imprimir ultimos cliques encontrados
@@ -498,7 +507,7 @@ class GraphCalc:
 		return d;
 	
 	# Orden de los vértices por grados
-	def deg_order(self, G, tst = False):
+	def sort_degrees(self, G, tst = False):
 		
 		k = 0; # Grado del vértice
 		L = []; # Orden de los vértices
@@ -612,7 +621,7 @@ class GraphCalc:
 		if tst: print("P U X: ",G.get_sub('aux'));
 		
 		# Calcular orden por grados de P U X
-		order = self.deg_order(G.get_subgraph('aux'));
+		order = self.sort_degrees(G.get_subgraph('aux'));
 		
 		# Trabajarlo de mayor a menor
 		order.reverse();
@@ -821,7 +830,7 @@ class GraphCalc:
 			return False;
 	
 	# Calcular aristas prohibitivas
-	def prohibitives(self, size, current_size, G, Com, put_on_G = False):
+	def prohibitives(self, m, size, current_size, G, Com, put_on_G = False):
 	
 		out = ''; # Salida de la función
 		prohib = []; # Aristas prohibidas
@@ -879,14 +888,14 @@ class GraphCalc:
 						if e_g == 0 and e_c == 0:
 							
 							# Agregar la arista a G, temporalmente
-							#out += '\nComprobando si ('+str(u)+','+str(v)+') induce un Ind4...';
+							#out += '\nComprobando si ('+str(u)+','+str(v)+') induce un Indm...';
 							G.edge(u, v);
 							
 							# Buscar un 3-clique en G
 							self.bron_kerbosch_order(G, 3);
 							
-							# Imprimir los cliques de Com (Ind's) encontrados
-							#out += '\nIndependientes:' + str(self.found_cliques) + '\n';
+							# Imprimir los cliques de G
+							#out += '\nCliques:' + str(self.found_cliques) + '\n';
 							
 							# Prohibir la arista en caso de que induzca un 3-clique en G
 							for c in self.found_cliques:
@@ -905,7 +914,7 @@ class GraphCalc:
 		# Calcular aristas prohibidas en Com
 		else:
 			
-			# Comprobar qué aristas que no están en G ni en Com inducen un Ind4
+			# Comprobar qué aristas que no están en G ni en Com inducen un Indm
 			for u in Com.V:
 				for v  in Com.V:
 					if u > v:
@@ -917,22 +926,36 @@ class GraphCalc:
 						if e_g == 0 and e_c == 0:
 							
 							# Agregar la arista a Com, temporalmente
-							#out += '\nComprobando si ('+str(u)+','+str(v)+') induce un Ind4...';
+							#out += '\nComprobando si ('+str(u)+','+str(v)+') induce un Indm...';
 							Com.edge(u, v);
 							
-							# Buscar un 4-clique en Com (complemento en construcción)
-							self.bron_kerbosch_order(Com, 4);
+							# Buscar un m-clique en Com (complemento en construcción)
+							self.bron_kerbosch_order(Com, m);
 							
 							# Imprimir los cliques de Com (Ind's) encontrados
 							#out += '\nIndependientes:' + str(self.found_cliques) + '\n';
 							
-							# Prohibir la arista en caso de que induzca un 4-clique en Com
+							# Prohibir la arista en caso de que induzca un m-clique en Com
 							for c in self.found_cliques:
-								if len(c) >= 4:
+								if len(c) >= m:
 								
 									# Agregar a G
 									out += 'La arista ('+str(u)+','+str(v)+') está en G.\n';
-									out += 'De lo contrario, G tendría Ind4.\n';
+									out += 'De lo contrario, G tendría Ind'+str(m)+'.\n';
+									
+									odds = self.deg_odd_vertexes(G); # Vértices de grado impar
+									hasOdds = o.contains(odds, u) or o.contains(odds, v); # Hay impares
+									hasCicle = self.hasEulerCicle(G); # Hay ciclo euleriano
+									
+									# Recalcular cota para el tamaño del camino actual
+									if hasOdds: out += 'Se conectó un vértice que era impar.\n';
+									if hasCicle: out += 'G tiene un ciclo euleriano.\n';
+									
+									# Aumentar en 1 el tamaño actual si es el caso
+									if hasOdds or hasCicle:
+										current_size += 1;
+										out += 'Entonces, hay un camino de tamaño '+str(current_size)+' / '+str(size)+'\n';
+									
 									prohib.append([u,v]);
 									G.edge(u, v);
 									break;
@@ -941,10 +964,10 @@ class GraphCalc:
 							Com.edge(u, v, 0);
 		
 		# Devolver diccionario
-		return {'out': out, 'prohib': prohib};
+		return {'out': out, 'prohib': prohib, 'current_size': current_size};
 	
 	# Refutar tamaño máximo asumido de un camino
-	def refuse_size(self, size, current_size, G, Com):
+	def refuse_size(self, m, size, current_size, G, Com):
 	
 		bucle = {'out' : '', 'prohib' : ['-']}; # Datos de la fase de bucle
 		
@@ -952,15 +975,15 @@ class GraphCalc:
 		while((G.edges + Com.edges < self.binomial(G.vertices, 2)) and (not bucle['prohib'] == [])):
 			
 			# Calcular aristas prohibidas de G
-			prohibitives = self.prohibitives(size, current_size, G, Com);
+			prohibitives = self.prohibitives(m, size, current_size, G, Com);
 			bucle['out'] += prohibitives['out'];
 			bucle['prohib'] = prohibitives['prohib'];
 			
 			# Monitorear el número de aristas decididas
 			bucle['out'] += 'Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
 			
-			# Buscar un 4-clique en Com (complemento en construcción)
-			self.bron_kerbosch_order(Com, 4);
+			# Buscar un m-clique en Com (complemento en construcción)
+			self.bron_kerbosch_order(Com, m);
 			
 			# Mostrar grafo/complemento sobre los que se ensaya
 			bucle['out'] += '<Grafo>\n' + G.print_ady(True);
@@ -969,16 +992,23 @@ class GraphCalc:
 			# Imprimir los cliques de Com (Ind's) encontrados
 			bucle['out'] += 'Independientes:' + str(self.found_cliques) + '\n';
 			
-			# Continuar la constr. solo si no se encontró un 4-clique en Com
+			# Continuar la constr. solo si no se encontró un m-clique en Com
 			for c in self.found_cliques:
-				if len(c) >= 4:
-					bucle['out'] += 'G tiene un Ind4:'+str(c)+'\n';
+				if len(c) >= m:
+					bucle['out'] += 'G tiene un Ind'+str(m)+':'+str(c)+'\n';
 					return bucle['out'];
 			
 			# Calcular aristas prohibidas de Com
-			prohibitives = self.prohibitives(size, current_size, G, Com, True);
+			prohibitives = self.prohibitives(m, size, current_size, G, Com, True);
 			bucle['out'] += prohibitives['out'];
 			bucle['prohib'] = prohibitives['prohib'];
+			
+			# Monitorear el tamaño del camino luego de la adición a G
+			bucle['out'] += 'tamaño = '+str(prohibitives['current_size'])+', máximo = '+str(size)+'\n';
+			current_size = prohibitives['current_size'];
+			if current_size > size:
+				bucle['out'] += 'Una contradicción.\n';
+				return bucle['out'];
 			
 			# Monitorear el número de aristas decididas
 			bucle['out'] += 'Aristas decididas: ' + str(G.edges + Com.edges) + ' / ' + str(self.binomial(G.vertices, 2)) + '\n';
@@ -1008,16 +1038,16 @@ class GraphCalc:
 		bucle['out'] += '<Cadena de suposiciones>\n';
 		print('<Cadena de suposiciones>');
 		
-		# Buscar un Ind >= 4 en G para construir la cadena de suposiciones
-		self.bron_kerbosch_order(G.get_complement(), 4);
+		# Buscar un Ind >= m en G para construir la cadena de suposiciones
+		self.bron_kerbosch_order(G.get_complement(), m);
 		
 		ind = []; # Conjunto independiente de la cadena
 		
-		# Obtener un Ind4 de un Ind>4, si es el caso.
+		# Obtener un Indm de un Ind>m, si es el caso.
 		for c in self.found_cliques:
-			if len(c) >= 4: ind = c[0:4];
+			if len(c) >= m: ind = c[0:m];
 			
-		# Detener el árbol si no existe tal Ind4
+		# Detener el árbol si no existe tal Indm
 		if ind == []:
 			bucle['out'] = '$' + bucle['out'];
 			return bucle['out'];
@@ -1051,7 +1081,7 @@ class GraphCalc:
 						if hasOdds or hasCicle:
 							sup_size += 1;
 							bucle['out'] += 'Entonces, hay un camino de tamaño '+str(sup_size)+' / '+str(size)+'\n';
-							
+						
 						# Memorizar el estado previo a la suposición
 						G_current = Graph();
 						G_current.insert_Vertexes(G.vertices);
@@ -1068,7 +1098,7 @@ class GraphCalc:
 						bucle['out'] += '<Complemento>\n' + Com.print_ady(True);
 							
 						# Hacer la suposición
-						bucle['out'] += self.refuse_size(size, sup_size, G, Com);
+						bucle['out'] += self.refuse_size(m, size, sup_size, G, Com);
 						
 						# Verificar el criterio de parada
 						if o.contains(bucle['out'], '$'):
@@ -1089,7 +1119,7 @@ class GraphCalc:
 						bucle['out'] += '<Complemento>\n' + Com.print_ady(True);
 			
 		# Concluir una contradicción producto de las previas negaciones.
-		bucle['out'] += 'Luego, G tiene un Ind4:'+str(ind)+', una contradicción.\n';
+		bucle['out'] += 'Luego, G tiene un Ind'+str(m)+':'+str(ind)+', una contradicción.\n';
 		
 		# Devolver salida
 		return bucle['out'];
@@ -1099,6 +1129,7 @@ class GraphCalc:
 		
 		size = G.vertices-1; # Tamaño del camino maximo
 		Com = None; # Grafo complemento
+		m = 5; # Ind del número de Ramsey
 		
 		# Notificar llamada a la función
 		out += '<Prototipo Ramsey>\n';
@@ -1121,7 +1152,7 @@ class GraphCalc:
 			print('<Asumir que el tamaño de un camino es, a lo sumo, de '+str(size)+'>');
 			
 			# Refutar tamaño asumido
-			out += self.refuse_size(size, current_size, G, Com);
+			out += self.refuse_size(m, size, current_size, G, Com);
 			
 			# Verificar criterio de parada
 			if o.contains(out, '$'):
@@ -1132,6 +1163,76 @@ class GraphCalc:
 		
 		# Ver el complemento construido al terminar el proceso
 		return {'out':out, 'complement':Com};
+	
+	# Ayudar a decidir la presencia de un Kn
+	def decide_Kn(self, G, n, tst = False):
+	
+		C = []; # Conjunto de candidatos
+		S = G.V.copy(); # Subconjunto de C
+		
+		while(not C == S):
+			
+			# Mostrar candidatos de la iteración
+			print('C:',C,'= S:',S);
+			
+			# Trabajar sobre el subconjunto S de la iteración anterior
+			C = S.copy();
+			
+			# Iniciar con S = 0
+			S = [];
+			
+			degs = ExMatrix(); # Grados del grafo recortado
+			
+			# Recorrer C X C
+			for v in C:
+		
+				acc = 0; # Acumulado del vértice v
+				
+				# Acciones para el vértice v
+				for u in C:
+					
+					# Paso nuevo
+					if tst: print('-----');
+					
+					# Insertar el valor de la arista horizontalmente
+					if v < u:
+						degs.intro(G.get_edge(v, u), v, u);
+					
+					# Acción si el acumulado aún no llega a n-1
+					if acc < (n - 1):
+						
+						# Insertar el valor de la arista verticalmente
+						if v == u:
+							degs.intro(0, v, v);		
+						elif v < u:
+							degs.intro(G.get_edge(v, u), u, v);
+						
+						# Sumar al acumulado de v
+						acc += degs.data[u][v];
+					
+					# Mostrar matriz
+					if tst: degs.print_matrix();
+					
+					# Mostrar acumulado de v
+					if tst: print('Acumulado de',v,':',acc,'/',n - 1,'C:',C);
+				
+				# Anular la fila si el vértice no tiene grado >= n - 1
+				if acc < n - 1:
+					degs.intro_row([0] * G.vertices, v);
+				
+				# De lo contrario, agregar v al conjunto de candidatos S
+				else:
+					S.append(v);
+				
+				# Criterio para refutar Kn, |S| + |C| - k < n
+				if len(S) + (len(C) - (v + 1)) < n:
+					if tst: print('No hay vértices suficientes.');
+					print('candidatos: []');
+					return [];
+		
+		print('candidatos:',C);
+		# Devolver el conjunto de candidatos 
+		return C;
 
 # Vértice visual
 class VertexCanvas(Widget):
@@ -1710,12 +1811,18 @@ class GraphCanvas(Widget):
 		# Guardar conjuntos calculados
 		cliq = self.C.found_cliques;
 		
+		# Imprimir cliques
+		print(cliq);
+		
 		# Calcular conjuntos independientes maximales del subgrafo
 		Com = self.G.get_complement();
 		self.C.bron_kerbosch_order(Com);
 		
 		# Guardar conjuntos calculados
 		ind = self.C.found_cliques;
+		
+		# Imprimir conjuntos independientes
+		print(ind);
 		
 		# Preparar lista de nombres
 		names = []; # Lista de nombres
@@ -1755,6 +1862,9 @@ class GraphCanvas(Widget):
 		# Guardar conjuntos calculados
 		cliq = self.C.found_cliques;
 		
+		# Imprimir cliques
+		print(cliq);
+		
 		# Preparar lista de nombres
 		names = []; # Lista de nombres
 		
@@ -1793,6 +1903,111 @@ class GraphCanvas(Widget):
 		
 		# Dibujar el complemento
 		self.set_graph(ramsey['complement'], subpanel);
+	
+	# Análisis del número de Ramsey con ciclos
+	def ramsey_cicle(self, subpanel):
+		
+		N = 36; # Vértices
+		n = 0; # Divisores
+		red = 0; # "Ciclos" en G
+		
+		combs = []; # Combinaciones
+		
+		s = 4; # Cliques
+		t = 6; # Independientes
+		
+		# Vaciar salida
+		f = open("Calculadora.txt", "w");
+		f.write('');
+		f.close();
+		
+		# Calcular número de divisores
+		while(2 * n < N):
+			n += 1;
+		
+		print(n);
+		
+		# Calcular número de "ciclos" en G
+		while(2 * red < n):
+			red += 1;
+			
+		print(red);
+		
+		# Guardar combinaciones
+		for i in range(red + 1):
+			if i < red: 
+				combs = self.C.combinations(n, i) + combs;
+			else: 
+				combs_h = self.C.combinations(n, i);
+				combs_h_half = combs_h[0: int(len(combs_h) / 2) + 1];
+				combs_h_half.reverse();
+				combs = combs_h_half + combs;
+		
+		# Construir grafos "cíclicos"
+		f = open("Calculadora.txt", "a");
+		
+		for c in combs:
+		
+			print('partición: '+str(c));
+		
+			G_aux = Graph();
+			G_aux.insert_Vertexes(N);
+		
+			# Insertar "ciclos" de la combinación
+			for i in range(n):
+				if c[i] == '1': G_aux.dist_edges(i + 1);
+			
+			# Escribir la adyacencia
+			f.write(G_aux.print_ady(True) + '\n');
+			
+			# Adoptar el grafo
+			self.set_graph(G_aux, subpanel);
+			
+			# Calcular cliques
+			self.C.bron_kerbosch_order(self.G, s);
+			
+			# Escribir un s-clique encontrado
+			f.write('<');
+			for c in self.C.found_cliques:
+				if len(c) >= s:
+					f.write('K' + str(len(c)) + ':' + str(c) + ', ');
+					break;
+			
+			# Calcular independientes
+			self.C.bron_kerbosch_order(self.G.get_complement(), t);
+			
+			# Escribir un t-independiente encontrado
+			for c in self.C.found_cliques:
+				if len(c) >= t:
+					f.write('Ind' + str(len(c)) + ':' + str(c));
+					break;
+			f.write('>\n');
+		
+		f.close();
+	
+	# Función de desarrollo
+	def dev(self, subpanel):
+		
+		# Notificar entrada
+		print('<Desarrollo>');
+		
+		# Descarte de Kn
+		n = 4;
+		decide = self.C.decide_Kn(self.G, n);
+		
+		if not decide == []:
+			
+			# Reiniciar el panel de subgrafos
+			subpanel.setup(self);
+			
+			# Reiniciar vista
+			subpanel.display_subgraph(self, 'self');
+			
+			# Almacenar subgrafo
+			self.auto_add_subs([decide], ['SubG_K'+str(n)], subpanel);
+			
+			# Ordenar subgrafos en el panel
+			subpanel.sort_subs(self, True);
 
 # Barra de herramientas
 class Toolbar(GridLayout):
@@ -1817,7 +2032,7 @@ class Toolbar(GridLayout):
 		txt.text = '';
 
 	# Solicitar al dibujante crear un subgrafo
-	def subgraph_definition(self, GC, subpanel, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, txt_in, confirm, tst = False):
+	def subgraph_definition(self, GC, subpanel, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, btn_dev, txt_in, confirm, tst = False):
 	
 		# Imprimir un separador para monitorizar las acciones del botón y el checkbox
 		if tst: print("------.");
@@ -1851,10 +2066,10 @@ class Toolbar(GridLayout):
 					print("Es un invitado, insultarlo.");
 		
 		# Manipular la barra según se entre/salga de la función de subgrafos
-		self.subgraph_buttons(GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, txt_in, tst);
+		self.subgraph_buttons(GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, btn_dev, txt_in, tst);
 
 	# Mostrar/Ocultar herramientas
-	def subgraph_buttons(self, GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, txt_in, tst = False):
+	def subgraph_buttons(self, GC, value, btn_sub, check_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, btn_dev, txt_in, tst = False):
 		
 		# Activar/Desactivar botones de otras funciones
 		btn_ran.disabled = value;
@@ -1864,6 +2079,7 @@ class Toolbar(GridLayout):
 		btn_cliq_ind.disabled = value;
 		btn_per.disabled = value;
 		btn_eul.disabled = value;
+		btn_dev.disabled = value;
 		
 		# Cambiar proósito de la entrada de texto
 		if value: txt_in.hint_text = 'Sel. subgrafo';
@@ -1921,7 +2137,7 @@ class Toolbar(GridLayout):
 		# Crear un nuevo grafo del mismo número de vértices y hacer aleatorias sus aristas
 		G = Graph();
 		G.insert_Vertexes(len(GC.V));
-		G.rand_edges(.3);
+		G.rand_edges(.8);
 		
 		# Pasárselo al dibujante
 		GC.set_graph(G, subpanel, tst);
@@ -1958,9 +2174,14 @@ class Toolbar(GridLayout):
 		self.add_widget(lbl_com);
 		self.add_widget(checkbox_c);
 		
-		# Botón del análisis Ramsey-Hamiton
-		btn_eul = Button(font_size='10', text='Ramsey-Ham', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
-		btn_eul.bind(on_press=lambda x:GC.ramsey_ham(subpanel));
+		# Botón de Desarrollo
+		btn_dev = Button(font_size='10', text='Desarrollo', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		btn_dev.bind(on_press=lambda x:GC.dev(subpanel));
+		self.add_widget(btn_dev);
+		
+		# Botón del análisis Ramsey
+		btn_eul = Button(font_size='10', text='Ramsey', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
+		btn_eul.bind(on_press=lambda x:GC.ramsey_cicle(subpanel));
 		self.add_widget(btn_eul);
 		
 		# Botón Camino simple
@@ -1975,7 +2196,7 @@ class Toolbar(GridLayout):
 		
 		# Botón de calcular cliques
 		btn_cliq = Button(font_size='10', text="Cliques", size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
-		btn_cliq.bind(on_press=lambda x:GC.calc_cliq(subpanel, True));
+		btn_cliq.bind(on_press=lambda x:GC.calc_cliq(subpanel));
 		self.add_widget(btn_cliq);
 		
 		# Botón de calcular cliques y conjuntos independientes
@@ -1997,8 +2218,8 @@ class Toolbar(GridLayout):
 		lbl_sub = Label(font_size='10', text='Definir subgrafo', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100);
 		btn_sub = Button(font_size='10', text='Confirm. subgrafo', size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100, disabled=True);
 		checkbox_sub = CheckBox(size_hint_y=None, height=self.wid_height, size_hint_x=None, width=100, active=False, color=(0,1,1));
-		btn_sub.bind(on_press=lambda x:self.subgraph_definition(GC, subpanel, False, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, self.txt_in, True));
-		checkbox_sub.bind(active=lambda x,y:self.subgraph_definition(GC, subpanel, checkbox_sub.active, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, self.txt_in, False));
+		btn_sub.bind(on_press=lambda x:self.subgraph_definition(GC, subpanel, False, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, btn_dev, self.txt_in, True));
+		checkbox_sub.bind(active=lambda x,y:self.subgraph_definition(GC, subpanel, checkbox_sub.active, btn_sub, checkbox_sub, btn_ran, btn_path, btn_path_2, btn_cliq, btn_cliq_ind, btn_per, btn_eul, btn_dev, self.txt_in, False));
 		self.add_widget(lbl_sub);
 		self.add_widget(checkbox_sub);
 		
@@ -2295,8 +2516,6 @@ class MyKeyboardListener(Widget):
 		# Crear un grafo nuevo
 		G = Graph();
 		
-		print(len(l));
-		
 		# Insetar los vértices (raíz cuadrada del área)
 		G.insert_Vertexes(int(m.sqrt(len(l))));
 		
@@ -2373,7 +2592,7 @@ class GraphApp(App):
 		
 		# Preparar grafo inicial
 		G = Graph();
-		G.insert_Vertexes(9);
+		G.insert_Vertexes(40);
 		
 		# Widget raíz
 		root = GridLayout();
