@@ -266,6 +266,13 @@ class Graph:
 		# Agregar secuencialmente aristas
 		for i in range(n):
 			self.edge((i)%self.vertices, (i+1)%self.vertices);
+	
+	# Agregar un camino determinado
+	def path(self, path):
+		
+		# Agregar secuencialmente aristas
+		for i in range(len(path) - 1):
+			self.edge(path[i], path[i+1]);
 
 	# Imprmir todos los subgrafos almacenados (Conjuntos de vértices)
 	def print_subs(self):
@@ -353,6 +360,15 @@ class Graph:
 						if G.get_edge(j, i) == 0: self.edge(j, i);
 						else: self.edge(j, i, 0);
 					else: self.edge(j, i, G.get_edge(j,i));
+	
+	# Devolver una copia
+	def copy(self):
+		
+		# Insertar los mismos vértices y aristas
+		G = Graph(); # Grafo copia
+		G.insert_Vertexes(self.vertices);
+		G.copy_inv_other_s_edges(self);
+		return G;
 	
 	# Señalar un camino
 	def mark_path(self, path):
@@ -454,6 +470,22 @@ class GraphCalc:
 					combs.append(comb);
 		
 		return combs;
+	
+	# Combinaciones de k elementos tomados de n (en un arreglo dado)
+	def combinations_arr(self, n, k, arr, tst = False):
+	
+		combs = self.combinations(n, k); # Combinaciones
+		combs_num = []; # Combinaciones en formato numérico
+		
+		# Crear un arreglo por cada combinación
+		for c in combs:
+			arr_aux = [];
+			for i in range(len(c)):
+				if c[i] == '1':	arr_aux.append(arr[i]);
+			combs_num.append(arr_aux);
+		
+		# Devolver combinaciones en formato numérico
+		return combs_num;
 	
 	# Coeficiente binomial
 	def binomial(self, n, k):
@@ -1176,14 +1208,14 @@ class GraphCalc:
 		return {'out':out, 'complement':Com};
 	
 	# Calcular aristas prohibitivas del algoritmo Ramsey-Plus
-	def prohibitives(self, m, G, Com, put_on_G = False):
+	def prohibitives(self, m, G, Com, lvl = 1, put_on_G = False):
 	
 		out = ''; # Salida de la función
 		prohib = []; # Aristas prohibidas
 	
 		# Notficar la llamada
-		out += '<Prohibitivas Plus>\n';
-		print('<Prohibitivas Plus>');
+		out += '<Prohibitivas Plus, lvl: '+str(lvl)+'>\n';
+		print('<Prohibitivas Plus, lvl: '+str(lvl)+'>');
 		
 		# Calcular aristas prohibidas en G
 		if not put_on_G:
@@ -1266,15 +1298,16 @@ class GraphCalc:
 		return {'out': out, 'prohib': prohib};
 	
 	# Refutar pareja asumida
-	def refuse_ramsey_plus(self, m, G, Com, f):
+	def refuse_ramsey_plus(self, m, G, Com, f, lvl = 1):
 	
 		data = {'out' : '', 'prohib' : ['-']}; # Datos a devolver
+		ind_base = []; # Mayor clique de m
 		
 		# Fase de bucle
 		while(not data['prohib'] == []):
 			
 			# Calcular aristas prohibidas de G
-			prohibitives = self.prohibitives(m, G, Com);
+			prohibitives = self.prohibitives(m, G, Com, lvl);
 			data['out'] += prohibitives['out'];
 			f.write(prohibitives['out']);
 			data['prohib'] = prohibitives['prohib'];
@@ -1296,15 +1329,20 @@ class GraphCalc:
 			data['out'] += 'Independientes:' + str(self.found_cliques) + '\n';
 			f.write('Independientes:' + str(self.found_cliques) + '\n');
 			
-			# Continuar la constr. solo si no se encontró un m-clique en Com
+			# Verificar si existe m-clique en Com, establecer clique base;
 			for c in self.found_cliques:
+				
+				# Escoger el conjunto independiente base de las suposiciones
+				if len(c) > len(ind_base): ind_base = c.copy();
+				
+				# Refutar par si se encontró un m-clique
 				if len(c) >= m:
 					data['out'] += 'G tiene un Ind'+str(m)+':'+str(c)+'\n';
 					f.write('G tiene un Ind'+str(m)+':'+str(c)+'\n');
 					return data['out'];
 			
 			# Calcular aristas prohibidas de Com
-			prohibitives = self.prohibitives(m, G, Com, True);
+			prohibitives = self.prohibitives(m, G, Com, lvl, True);
 			data['out'] += prohibitives['out'];
 			f.write(prohibitives['out']);
 			data['prohib'] = prohibitives['prohib'];
@@ -1340,19 +1378,34 @@ class GraphCalc:
 			return data['out'];
 		
 		# Construir una cadena conveniente de suposiciones
-		data['out'] += '<Cadena de suposiciones>\n';
-		f.write('<Cadena de suposiciones>\n');
-		print('<Cadena de suposiciones>');
+		data['out'] += '<Cadena de suposiciones, lvl: '+str(lvl)+'>\n';
+		f.write('<Cadena de suposiciones, lvl: '+str(lvl)+'>\n');
+		print('<Cadena de suposiciones, lvl: '+str(lvl)+'>');
 		
-		# Buscar un Ind >= m en G para construir la cadena de suposiciones
-		self.bron_kerbosch_order(G.get_complement(), m);
+		# Imprimir el conjunto independiente base
+		data['out'] += 'Conjunto base: '+str(ind_base)+'\n';
+		f.write('Conjunto base: '+str(ind_base)+'\n');
+		
+		# Buscar los Ind >= m en G para construir la cadena de suposiciones
+		self.bron_kerbosch_order(G.get_complement());
 		
 		ind = []; # Conjunto independiente de la cadena
+		match = -1; # Vértices coherentes con la base
 		
-		# Obtener un Indm de un Ind>m, si es el caso.
+		# Obtener un Indm de un Ind>m, si es el caso. Empatarlo con la base.
 		for c in self.found_cliques:
-			if len(c) >= m: ind = c[0:m];
 			
+			# Calcular conjunto de la cadena
+			if len(c) >= m:
+				current_match = len(self.intersection_set(c, ind_base));
+				if current_match > match:
+					ind = c[0:m];
+					match = current_match;
+					
+					# Informar del nuevo candidato
+					data['out'] += 'Conjunto empleado: '+str(ind)+'\n';
+					f.write('Conjunto empleado: '+str(ind)+'\n');
+		
 		# Detener el árbol si no existe tal Indm
 		if ind == []:
 			data['out'] = '$' + data['out'];
@@ -1396,7 +1449,7 @@ class GraphCalc:
 						f.write('<Complemento>\n' + Com.print_ady(True));
 							
 						# Negar la suposición, si es posible
-						recursive_call = self.refuse_ramsey_plus(m, G, Com, f);
+						recursive_call = self.refuse_ramsey_plus(m, G, Com, f, lvl+1);
 						data['out'] += recursive_call;
 						f.write(recursive_call);
 						
@@ -1437,7 +1490,7 @@ class GraphCalc:
 		
 		Gp = proved_pair['Gp']; # Grafo probado
 		Com = proved_pair['Com']; # Complemento probado
-		m = 6; # Ind del número de Ramsey
+		m = 7; # Ind del número de Ramsey
 		
 		# Notificar llamada a la función
 		f.write('<Prototipo Ramsey Plus>\n');
@@ -1454,12 +1507,99 @@ class GraphCalc:
 		# Devolver el grafo construido al terminar el proceso
 		return Gp;
 	
+	# Obtener todos los cliques de tamaño n contenidos
+	def get_all_n_cliques(self, G, n):
+		
+		# Buscar cliques maximales
+		self.bron_kerbosch_order(G);
+		
+		n_cliques = []; # Cliques de tamaño n
+		
+		for c in self.found_cliques:
+			
+			# Procesar cliques >= n
+			if len(c) >= n:
+				#print('Ind>=n:',c);
+			
+				# Tomar los subconjuntos de n elementos
+				combs = self.combinations(len(c), n);
+				#print(combs);
+				
+				# Recorrer caracteres de cada combinación
+				for comb in combs:
+					sub = []; # Subconjunto de n elementos
+					
+					# Si el caracter i-ésimo es 1, tomar el i-ésimo elemento del clique
+					for i in range(len(comb)):
+						if comb[i] == '1': sub.append(c[i]);
+					
+					# Guardar el n-clique
+					n_cliques.append(sub);
+		
+		# Imprimir triángulos independientes
+		print(n_cliques);
+		return n_cliques;
+	
+	# Decidir si un grafo contiene Bip_3_3 completo
+	def bip_3_3(self, G):
+		
+		Ind_triangles = self.get_all_n_cliques(G.get_complement(), 3); # Triángulos independientes
+		
+		# Verificar la adyacencia de todos los pares de triángulos independientes
+		for t1 in Ind_triangles:
+			for t2 in Ind_triangles:
+				if not self.intersection_set(t1, t2) == []: continue;
+				print('t1:',t1,'- t2:',t2);
+				full_points = 0; # "Puntos del triángulo completos"
+				
+				# Calcular adyacencia
+				for v in t1:
+					Nv = self.neighbor_set(v, G); # Vecinos de un punto del triángulo
+					Image = self.intersection_set(t2, Nv); # Vecinos del triágulo de llegada
+					
+					# Sumar a los "puntos completos" si hay adyacencia con todo t2
+					if len(Image) == 3: full_points += 1;
+				
+				# Notificar si la adyacencia es completa
+				print('full:',full_points);
+				if full_points == 3: 
+					print('puntos completos.');
+					return;
+	
+	# Verificar si un grafo es n-clique libre maximal
+	def clique_n_free_maximal(self, G, n):
+		
+		# Obtener el complemento
+		Com = G.get_complement();
+		
+		# Recorrer las aristas del complemento
+		for u in range(Com.vertices):
+			for v in range(Com.vertices):
+				if u > v:
+					if Com.get_edge(u, v) > 0:
+						
+						# Imprimir la arista
+						print('arista:',u,',',v,':');
+						
+						# Hacer una copia + UV del grafo para verificar si la arista induce un Kn
+						G_real = Graph();
+						G_real.insert_Vertexes(G.vertices);
+						G_real.copy_inv_other_s_edges(G);
+						G_real.edge(u, v);
+						
+						# Buscar un n-clique en la copia + UV
+						self.bron_kerbosch_order(G_real, n);
+						
+						# Imprimir el n-clique encontrado, si lo hay
+						for c in self.found_cliques:
+							if len(c) >= n:	print('n-clique inducido:',c);
+	
 	# Ayudar a decidir la presencia de un Kn
-	def decide_Kn(self, G, n, tst = False):
+	def discard_Kn(self, G, n, tst = False):
 	
 		'''
 		Criterio, débil, para descartar (o proporcionar vértices candidatos)
-		de un K.
+		de un Kn.
 		'''
 	
 		C = []; # Conjunto de candidatos
@@ -1528,8 +1668,64 @@ class GraphCalc:
 		print('candidatos:',C);
 		# Devolver el conjunto de candidatos 
 		return C;
+	
+	# Caminos oscilantes (con reconteo)
+	def oscilate(self, A, B, tst = False):
+		
+		if tst: print('A:',A,', B:',B);
+		
+		paths = []; # Caminos
+		paths_left = []; # Caminos posibles contenidos
+		
+		# Caso base
+		if len(A) == 1 and len(B) == 1:
+			base = [[B[0], A[0]]];
+			if tst: print('Base:',base);
+			return base;
+		
+		# Determinar el caso recursivo
+		if len(A) == len(B) + 1:
+		
+			# Concatenar el punto de partida con los posibles caminos restantes
+			for a in A:
+				A_a = A.copy(); # Arreglo residual
+				A_a.remove(a);
+				paths_left = self.oscilate(A_a, B); # Calcular posibles caminos restantes
+				
+				# Agregar los caminos inducidos por a
+				for p in paths_left:
+					paths.append([a] + p);
+		else:
+			
+			# Concatenar el punto de partida con los posibles caminos restantes
+			for b in B:
+				B_b = B.copy(); # Arreglo residual
+				B_b.remove(b);
+				paths_left = self.oscilate(A, B_b); # Calcular posibles caminos restantes
+				
+				# Agregar los caminos inducidos por b
+				for p in paths_left:
+					paths.append([b] + p);
+		
+		# Devolver concatenaciones
+		return paths;
+	
+	# Caminos oscilantes (sin reconteo)
+	def oscilations(self, A, B):
+		
+		osc = self.oscilate(A, B); # oscilaciones con reconteo
+		osc_dif = []; # oscilaciones sin reconteo
+		
+		# Agregar oscilaciones sin su representación opuesta
+		for os in osc:
+			o_aux = os.copy();
+			o_aux.reverse();
+			if not o.contains(osc_dif, o_aux): osc_dif.append(os);
+		
+		# Devolver oscilaciones
+		return osc_dif;
 
-# Vértice visual
+# Vértice visual 
 class VertexCanvas(Widget):
 	
 	id = NumericProperty(-1);	# Id del vertice
@@ -2283,6 +2479,8 @@ class GraphCanvas(Widget):
 	# Análisis del número de Ramsey, algoritmo Ramsey-Plus
 	def ramsey_plus(self, subpanel):
 		
+		pair = self.get_pair_from_calc(subpanel); # Par confirmado
+		
 		# Vaciar salida
 		f = open("Calculadora.txt", "w");
 		f.write('');
@@ -2291,18 +2489,86 @@ class GraphCanvas(Widget):
 		# Prototipo del algoritmo Ramsey (Ramsey-plus)
 		f = open("Calculadora.txt", "a");
 		
-		# Aportar par confirmado
-		G = Graph();
-		G.insert_Vertexes(self.G.vertices);
-		Com = Graph();
-		Com.insert_Vertexes(self.G.vertices);
-		
 		# Ejecutar algoritmo
-		ramsey = self.C.ramsey_plus( {'Gp':G, 'Com':Com}, f );
+		ramsey = self.C.ramsey_plus(pair, f );
 		f.close();
 		
 		# Dibujar el último grafo del algoritmo
 		self.set_graph(ramsey, subpanel);
+	
+	# Función para tomar el par confirmado de la calculadora
+	def get_pair_from_calc(self, subpanel):
+	
+		# Leer lo escrito en la calculadora
+		f = open("Calculadora.txt", "r");
+		
+		# Extraer el texto
+		src = '';
+		for line in f:
+			src += line;
+	
+		# Convertir en lista sin espacios
+		l = list(src.rsplit(' '));
+		
+		# Crear un grafo nuevo
+		G = Graph();
+		
+		# Insetar los vértices 
+		vxs = int(l.pop(0));	# Primer número
+		G.insert_Vertexes(vxs);
+		
+		# Insertar aristas
+		for u in range(G.vertices):
+			for v in range(G.vertices):
+				src = l.pop(0);	# Fuente de la uv-ésima arista
+				e = ''; #uv-ésima arista
+				print('src',src);
+				# Obtener el valor numérico de la cadena de texto
+				for c in src:
+					if c.isnumeric(): e += c;
+				G.edge(u,v,int(e));
+		
+		# Crear un complemento nuevo
+		Com = Graph();
+		
+		# Insetar los vértices (raíz cuadrada del área)
+		Com.insert_Vertexes(G.vertices);
+		
+		# Insertar aristas
+		for u in range(Com.vertices):
+			for v in range(Com.vertices):
+				src = l.pop(0);	# Fuente de la uv-ésima arista
+				e = ''; #uv-ésima arista
+				print('src',src);
+				# Obtener el valor numérico de la cadena de texto
+				for c in src:
+					if c.isnumeric(): e += c;
+				Com.edge(u,v,int(e));
+		
+		# Devolver par
+		f.close();
+		return {'Gp':G, 'Com':Com};
+	
+	# Dibujar N veces el grafo actual
+	def n_times(self, subpanel, N):
+		
+		# Notificar entrada
+		print('<'+str(N)+' veces>');
+		
+		# Copiar el grafo N veces
+		G = Graph();
+		G.insert_Vertexes(N * self.G.vertices); 
+		
+		# Insertar aristas
+		n = self.G.vertices;
+		for u in range(n):
+			for v in range(n):
+				if u > v:
+					for i in range(N):
+						G.edge(u + i * n, v + i * n, self.G.get_edge(u, v));
+		
+		# Adoptar grafo
+		self.set_graph(G, subpanel);
 	
 	# Función de desarrollo
 	def dev(self, subpanel):
@@ -2310,8 +2576,30 @@ class GraphCanvas(Widget):
 		# Notificar entrada
 		print('<Desarrollo>');
 		
-		# Probar algoritmo Ramsey-Plus sin una pareja inicial
-		self.ramsey_plus(subpanel);
+		# Aristas Paley
+		self.G.dist_edges(1);
+		self.G.dist_edges(2);
+		self.G.dist_edges(4);
+		self.G.dist_edges(8);
+		
+		'''
+		# n-clique maximal
+		self.C.clique_n_free_maximal(self.G, 6); 
+		
+		# n-clique maximal
+		self.C.clique_n_free_maximal(self.G, 4); 
+		
+		# Bip 3_3
+		self.C.bip_3_3(self.G);
+		
+		# Copiar el grafo 4-clique-libre N veces
+		N = 2;
+		self.n_times(subpanel, N);
+		
+		# Funcion de 4,n-grafo
+		G = self.C.graph_4_n(self.G);
+		self.set_graph(G, subpanel);
+		'''
 
 # Barra de herramientas
 class Toolbar(GridLayout):
@@ -2441,7 +2729,7 @@ class Toolbar(GridLayout):
 		# Crear un nuevo grafo del mismo número de vértices y hacer aleatorias sus aristas
 		G = Graph();
 		G.insert_Vertexes(len(GC.V));
-		G.rand_edges(.8);
+		G.rand_edges(.5);
 		
 		# Pasárselo al dibujante
 		GC.set_graph(G, subpanel, tst);
@@ -2875,7 +3163,7 @@ class MyKeyboardListener(Widget):
 		# Copiar el grafo trabajado al portapapeles al preisonar g
 		if keycode[1] == 'g':
 			print('graph copy');
-			self.toolbar.txt_out.text = str(self.GC.G.get_subgraph(self.GC.view_name).E.data);
+			self.toolbar.txt_out.text = str(self.GC.G.get_subgraph(self.GC.view_name).print_ady(True));
 			self.toolbar.txt_out.copy(self.toolbar.txt_out.text);
 		
 		# Copiar el grafo del portapapeles al preisonar p
@@ -2896,7 +3184,7 @@ class GraphApp(App):
 		
 		# Preparar grafo inicial
 		G = Graph();
-		G.insert_Vertexes(16);
+		G.insert_Vertexes(17);
 		
 		# Widget raíz
 		root = GridLayout();
@@ -2923,7 +3211,7 @@ class GraphApp(App):
 		root.add_widget(key_mng);
 		
 		# Actualizar el contenido del lienzo con el grafo de la aplicación
-		Clock.schedule_interval(lambda x:graph_canvas.update(toolbar, subpanel, tst, G, 10), 1.0 / 60.0);
+		Clock.schedule_interval(lambda x:graph_canvas.update(toolbar, subpanel, tst, G, 20), 1.0 / 60.0);
 		
 		return root;
 
